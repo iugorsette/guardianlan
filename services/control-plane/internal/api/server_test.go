@@ -74,3 +74,59 @@ func TestUpdateDeviceProfile(t *testing.T) {
 		t.Fatalf("expected profile child, got %s", device.ProfileID)
 	}
 }
+
+func TestListDeviceInsights(t *testing.T) {
+	store := repository.NewMemoryStore()
+	now := time.Now().UTC()
+	_, _, err := store.UpsertDevice(context.Background(), domain.Device{
+		ID:         "device-1",
+		Hostname:   "cam-1",
+		ProfileID:  "iot",
+		DeviceType: "camera",
+		FirstSeen:  now,
+		LastSeen:   now,
+	})
+	if err != nil {
+		t.Fatalf("seed device: %v", err)
+	}
+
+	err = store.StoreObservation(context.Background(), domain.Observation{
+		ID:       "obs-1",
+		DeviceID: "device-1",
+		Source:   "discovery-collector",
+		Kind:     "device_discovered",
+		Severity: "medium",
+		Summary:  "Camera observed",
+		EvidenceRef: map[string]any{
+			"candidate_snapshot_urls": []string{"http://192.168.1.21:80/snapshot.jpg"},
+			"preview_supported":       true,
+		},
+		ObservedAt: now,
+	})
+	if err != nil {
+		t.Fatalf("seed observation: %v", err)
+	}
+
+	server := NewServer(":0", store, service.NewOrchestrator(store, messaging.NoopPublisher{}, "adguardhome"))
+	req := httptest.NewRequest(http.MethodGet, "/devices/device-1/insights", nil)
+	rec := httptest.NewRecorder()
+
+	server.httpServer.Handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+
+	var insights []domain.DeviceInsight
+	if err := json.Unmarshal(rec.Body.Bytes(), &insights); err != nil {
+		t.Fatalf("decode insights: %v", err)
+	}
+
+	if len(insights) != 1 {
+		t.Fatalf("expected 1 insight, got %d", len(insights))
+	}
+
+	if insights[0].Kind != "device_discovered" {
+		t.Fatalf("expected insight kind device_discovered, got %s", insights[0].Kind)
+	}
+}

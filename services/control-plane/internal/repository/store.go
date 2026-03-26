@@ -19,6 +19,7 @@ type Store interface {
 	StoreFlowEvent(context.Context, domain.FlowEvent) error
 	ListFlowEvents(context.Context, int) ([]domain.FlowEvent, error)
 	StoreObservation(context.Context, domain.Observation) error
+	ListDeviceObservations(context.Context, string, int) ([]domain.Observation, error)
 	CreateAlert(context.Context, domain.Alert) error
 	ListAlerts(context.Context, int, string) ([]domain.Alert, error)
 	AckAlert(context.Context, string) (domain.Alert, error)

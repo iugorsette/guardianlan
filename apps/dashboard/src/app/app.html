@@ -172,6 +172,83 @@
     </article>
   </section>
 
+  <section class="camera-grid">
+    <article class="panel">
+      <header class="panel-header panel-header-stack">
+        <div>
+          <p class="section-kicker">Cameras</p>
+          <h2>Cameras detectadas na rede</h2>
+        </div>
+        <span class="pill neutral">{{ cameraDevices().length }} candidatas</span>
+      </header>
+
+      <div class="camera-list">
+        @for (device of cameraDevices(); track trackById($index, device)) {
+          <section class="camera-card">
+            <div class="camera-copy">
+              <div class="device-heading">
+                <h3>{{ device.hostname || device.id }}</h3>
+                <span class="pill" [class.high]="device.risk_score >= 50" [class.medium]="device.risk_score < 50">
+                  risco {{ device.risk_score }}
+                </span>
+              </div>
+
+              <p class="device-meta">
+                {{ device.vendor || 'Fabricante desconhecido' }} · {{ device.ips.join(', ') || 'Sem IP' }}
+              </p>
+
+              @if (evidenceFor(device.id); as evidence) {
+                <div class="camera-summary">
+                  <span class="tag">confianca {{ evidence.confidence || 'low' }}</span>
+                  <span class="tag">
+                    {{
+                      evidence.preview_supported
+                        ? (evidence.preview_requires_auth ? 'preview provavelmente exige login' : 'preview possivelmente aberto')
+                        : 'sem preview automatico detectado'
+                    }}
+                  </span>
+                  @if (evidence.open_ports?.length) {
+                    <span class="tag">portas {{ evidence.open_ports?.join(', ') }}</span>
+                  }
+                  @if (evidence.services?.length) {
+                    <span class="tag">servicos {{ evidence.services?.join(', ') }}</span>
+                  }
+                </div>
+
+                @if (evidence.candidate_snapshot_urls?.length) {
+                  <div class="link-group">
+                    <p>Snapshots candidatos</p>
+                    @for (url of evidence.candidate_snapshot_urls?.slice(0, 3); track $index) {
+                      <a class="camera-link" [href]="url" target="_blank" rel="noopener noreferrer">
+                        {{ url }}
+                      </a>
+                    }
+                  </div>
+                }
+
+                @if (evidence.candidate_stream_urls?.length) {
+                  <div class="link-group">
+                    <p>Streams candidatos</p>
+                    @for (url of evidence.candidate_stream_urls?.slice(0, 3); track $index) {
+                      <code class="camera-code">{{ url }}</code>
+                    }
+                  </div>
+                }
+              } @else {
+                <p class="device-meta">Ainda sem evidencias detalhadas desta camera.</p>
+              }
+            </div>
+          </section>
+        } @empty {
+          <div class="empty-state">
+            <h3>Nenhuma camera identificada ainda</h3>
+            <p>Quando a descoberta reconhecer uma camera, os endpoints candidatos de snapshot e stream aparecem aqui.</p>
+          </div>
+        }
+      </div>
+    </article>
+  </section>
+
   <section class="telemetry-grid">
     <article class="panel">
       <header class="panel-header panel-header-stack">

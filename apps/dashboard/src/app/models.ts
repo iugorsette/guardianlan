@@ -12,6 +12,26 @@ export interface Device {
   last_seen_at: string;
 }
 
+export interface DeviceEvidence {
+  open_ports?: number[];
+  services?: string[];
+  candidate_snapshot_urls?: string[];
+  candidate_stream_urls?: string[];
+  preview_supported?: boolean;
+  preview_requires_auth?: boolean;
+  confidence?: string;
+}
+
+export interface DeviceInsight {
+  device_id: string;
+  source: string;
+  kind: string;
+  severity: string;
+  summary: string;
+  evidence: Record<string, unknown>;
+  observed_at: string;
+}
+
 export interface Alert {
   id: string;
   device_id: string;
@@ -53,4 +73,3 @@ export interface DashboardSnapshot {
   dnsEvents: DnsEvent[] | null;
   flowEvents: FlowEvent[] | null;
 }
-

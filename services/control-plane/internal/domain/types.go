@@ -2,6 +2,16 @@ package domain
 
 import "time"
 
+type DeviceEvidence struct {
+	OpenPorts             []int    `json:"open_ports,omitempty"`
+	Services              []string `json:"services,omitempty"`
+	CandidateSnapshotURLs []string `json:"candidate_snapshot_urls,omitempty"`
+	CandidateStreamURLs   []string `json:"candidate_stream_urls,omitempty"`
+	PreviewSupported      bool     `json:"preview_supported,omitempty"`
+	PreviewRequiresAuth   bool     `json:"preview_requires_auth,omitempty"`
+	Confidence            string   `json:"confidence,omitempty"`
+}
+
 type Device struct {
 	ID         string    `json:"id"`
 	MAC        string    `json:"mac"`
@@ -25,6 +35,7 @@ type DeviceEvent struct {
 	DeviceType string    `json:"device_type"`
 	ProfileID  string    `json:"profile_id"`
 	Managed    bool      `json:"managed"`
+	Evidence   DeviceEvidence `json:"evidence"`
 	ObservedAt time.Time `json:"observed_at"`
 }
 
@@ -62,6 +73,16 @@ type Observation struct {
 	ObservedAt  time.Time              `json:"observed_at"`
 }
 
+type DeviceInsight struct {
+	DeviceID     string                 `json:"device_id"`
+	Source       string                 `json:"source"`
+	Kind         string                 `json:"kind"`
+	Severity     string                 `json:"severity"`
+	Summary      string                 `json:"summary"`
+	Evidence     map[string]any         `json:"evidence"`
+	ObservedAt   time.Time              `json:"observed_at"`
+}
+
 type Alert struct {
 	ID           string         `json:"id"`
 	DeviceID     string         `json:"device_id"`
@@ -77,4 +98,3 @@ type Alert struct {
 type ProfileUpdateRequest struct {
 	ProfileID string `json:"profile_id"`
 }
-

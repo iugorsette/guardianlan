@@ -70,10 +70,7 @@ func (o *Orchestrator) HandleDeviceEvent(ctx context.Context, event domain.Devic
 		Kind:       ternary(discovered, "device_discovered", "device_updated"),
 		Severity:   ternary(discovered && created, "medium", "info"),
 		Summary:    fmt.Sprintf("Device %s observed with profile %s", stored.HostnameOrID(), stored.ProfileID),
-		EvidenceRef: map[string]any{
-			"hostname": stored.Hostname,
-			"ips":      stored.IPs,
-		},
+		EvidenceRef: discoveryEvidence(stored, event.Evidence),
 		ObservedAt: observedAt,
 	}
 	if err := o.store.StoreObservation(ctx, observation); err != nil {
@@ -94,6 +91,39 @@ func (o *Orchestrator) HandleDeviceEvent(ctx context.Context, event domain.Devic
 	}
 
 	return nil
+}
+
+func discoveryEvidence(device domain.Device, evidence domain.DeviceEvidence) map[string]any {
+	result := map[string]any{
+		"hostname":    device.Hostname,
+		"ips":         device.IPs,
+		"vendor":      device.Vendor,
+		"device_type": device.DeviceType,
+	}
+
+	if len(evidence.OpenPorts) > 0 {
+		result["open_ports"] = evidence.OpenPorts
+	}
+	if len(evidence.Services) > 0 {
+		result["services"] = evidence.Services
+	}
+	if len(evidence.CandidateSnapshotURLs) > 0 {
+		result["candidate_snapshot_urls"] = evidence.CandidateSnapshotURLs
+	}
+	if len(evidence.CandidateStreamURLs) > 0 {
+		result["candidate_stream_urls"] = evidence.CandidateStreamURLs
+	}
+	if evidence.PreviewSupported {
+		result["preview_supported"] = evidence.PreviewSupported
+	}
+	if evidence.PreviewRequiresAuth {
+		result["preview_requires_auth"] = evidence.PreviewRequiresAuth
+	}
+	if evidence.Confidence != "" {
+		result["confidence"] = evidence.Confidence
+	}
+
+	return result
 }
 
 func (o *Orchestrator) HandleDNSEvent(ctx context.Context, event domain.DNSEvent) error {

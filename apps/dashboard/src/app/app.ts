@@ -13,6 +13,7 @@ import { interval, startWith } from 'rxjs';
 
 import { DashboardApiService } from './dashboard-api.service';
 import { Alert, Device } from './models';
+import { DeviceEvidence, DeviceInsight } from './models';
 import { DASHBOARD_AUTO_REFRESH_MS } from './dashboard.tokens';
 
 @Component({
@@ -40,6 +41,9 @@ export class App {
   );
   protected readonly dnsEvents = computed(() => this.api.dnsEvents().slice(0, 8));
   protected readonly flowEvents = computed(() => this.api.flowEvents().slice(0, 8));
+  protected readonly cameraDevices = computed(() =>
+    this.devices().filter((device) => device.device_type === 'camera')
+  );
 
   constructor() {
     if (this.autoRefreshMs < 0) {
@@ -76,5 +80,18 @@ export class App {
     }
 
     this.api.acknowledgeAlert(alert.id);
+  }
+
+  protected latestInsight(deviceId: string): DeviceInsight | null {
+    return this.api.deviceInsights()[deviceId]?.[0] ?? null;
+  }
+
+  protected evidenceFor(deviceId: string): DeviceEvidence | null {
+    const insight = this.latestInsight(deviceId);
+    if (!insight) {
+      return null;
+    }
+
+    return insight.evidence as DeviceEvidence;
   }
 }

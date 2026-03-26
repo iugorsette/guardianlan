@@ -10,6 +10,24 @@ pub const DNS_OBSERVED_SUBJECT: &str = "network.dns.query_observed";
 pub const FLOW_OBSERVED_SUBJECT: &str = "network.flow.observed";
 pub const ALERT_RAISED_SUBJECT: &str = "network.alert.raised";
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DeviceEvidence {
+    #[serde(default)]
+    pub open_ports: Vec<u16>,
+    #[serde(default)]
+    pub services: Vec<String>,
+    #[serde(default)]
+    pub candidate_snapshot_urls: Vec<String>,
+    #[serde(default)]
+    pub candidate_stream_urls: Vec<String>,
+    #[serde(default)]
+    pub preview_supported: bool,
+    #[serde(default)]
+    pub preview_requires_auth: bool,
+    #[serde(default)]
+    pub confidence: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DeviceEvent {
     pub id: String,
@@ -20,6 +38,8 @@ pub struct DeviceEvent {
     pub device_type: String,
     pub profile_id: String,
     pub managed: bool,
+    #[serde(default)]
+    pub evidence: DeviceEvidence,
     pub observed_at: String,
 }
 
@@ -90,4 +110,3 @@ where
 
     Ok(events.len())
 }
-

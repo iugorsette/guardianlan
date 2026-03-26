@@ -126,7 +126,24 @@ func (s *MemoryStore) StoreObservation(_ context.Context, observation domain.Obs
 	defer s.mu.Unlock()
 
 	s.observations = append(s.observations, observation)
+	sort.Slice(s.observations, func(i, j int) bool {
+		return s.observations[i].ObservedAt.After(s.observations[j].ObservedAt)
+	})
 	return nil
+}
+
+func (s *MemoryStore) ListDeviceObservations(_ context.Context, deviceID string, limit int) ([]domain.Observation, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var observations []domain.Observation
+	for _, observation := range s.observations {
+		if observation.DeviceID == deviceID {
+			observations = append(observations, observation)
+		}
+	}
+
+	return limitedCopy(observations, limit), nil
 }
 
 func (s *MemoryStore) CreateAlert(_ context.Context, alert domain.Alert) error {

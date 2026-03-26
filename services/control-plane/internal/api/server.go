@@ -30,6 +30,7 @@ func NewServer(addr string, store repository.Store, orchestrator *service.Orches
 	mux.HandleFunc("GET /healthz", server.handleHealthz)
 	mux.HandleFunc("GET /devices", server.handleListDevices)
 	mux.HandleFunc("GET /devices/{id}", server.handleGetDevice)
+	mux.HandleFunc("GET /devices/{id}/insights", server.handleListDeviceInsights)
 	mux.HandleFunc("POST /devices/{id}/profile", server.handleUpdateDeviceProfile)
 	mux.HandleFunc("GET /activity/dns", server.handleListDNSEvents)
 	mux.HandleFunc("GET /activity/flows", server.handleListFlowEvents)
@@ -107,6 +108,38 @@ func (s *Server) handleUpdateDeviceProfile(w http.ResponseWriter, r *http.Reques
 	}
 
 	writeJSON(w, http.StatusOK, device)
+}
+
+func (s *Server) handleListDeviceInsights(w http.ResponseWriter, r *http.Request) {
+	deviceID := r.PathValue("id")
+	if _, err := s.store.GetDevice(r.Context(), deviceID); errors.Is(err, pgx.ErrNoRows) {
+		writeError(w, http.StatusNotFound, err)
+		return
+	} else if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	observations, err := s.store.ListDeviceObservations(r.Context(), deviceID, parseLimit(r, 10))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	insights := make([]domain.DeviceInsight, 0, len(observations))
+	for _, observation := range observations {
+		insights = append(insights, domain.DeviceInsight{
+			DeviceID:   observation.DeviceID,
+			Source:     observation.Source,
+			Kind:       observation.Kind,
+			Severity:   observation.Severity,
+			Summary:    observation.Summary,
+			Evidence:   observation.EvidenceRef,
+			ObservedAt: observation.ObservedAt,
+		})
+	}
+
+	writeJSON(w, http.StatusOK, insights)
 }
 
 func (s *Server) handleListDNSEvents(w http.ResponseWriter, r *http.Request) {

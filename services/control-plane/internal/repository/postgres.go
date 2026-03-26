@@ -228,6 +228,31 @@ func (s *PostgresStore) StoreObservation(ctx context.Context, observation domain
 	return nil
 }
 
+func (s *PostgresStore) ListDeviceObservations(ctx context.Context, deviceID string, limit int) ([]domain.Observation, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT id, device_id, source, kind, severity, summary, evidence_ref, observed_at
+		FROM observations
+		WHERE device_id = $1
+		ORDER BY observed_at DESC
+		LIMIT $2
+	`, deviceID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list observations: %w", err)
+	}
+	defer rows.Close()
+
+	var observations []domain.Observation
+	for rows.Next() {
+		observation, err := scanObservation(rows)
+		if err != nil {
+			return nil, err
+		}
+		observations = append(observations, observation)
+	}
+
+	return observations, rows.Err()
+}
+
 func (s *PostgresStore) CreateAlert(ctx context.Context, alert domain.Alert) error {
 	evidenceJSON, err := json.Marshal(alert.Evidence)
 	if err != nil {
@@ -344,6 +369,37 @@ func scanAlert(scanner interface {
 	}
 
 	return alert, nil
+}
+
+func scanObservation(scanner interface {
+	Scan(...any) error
+}) (domain.Observation, error) {
+	var observation domain.Observation
+	var evidenceJSON []byte
+	err := scanner.Scan(
+		&observation.ID,
+		&observation.DeviceID,
+		&observation.Source,
+		&observation.Kind,
+		&observation.Severity,
+		&observation.Summary,
+		&evidenceJSON,
+		&observation.ObservedAt,
+	)
+	if err != nil {
+		return domain.Observation{}, fmt.Errorf("scan observation: %w", err)
+	}
+
+	if len(evidenceJSON) == 0 {
+		observation.EvidenceRef = map[string]any{}
+		return observation, nil
+	}
+
+	if err := json.Unmarshal(evidenceJSON, &observation.EvidenceRef); err != nil {
+		return domain.Observation{}, fmt.Errorf("unmarshal observation evidence: %w", err)
+	}
+
+	return observation, nil
 }
 
 func isUniqueViolation(err error) bool {

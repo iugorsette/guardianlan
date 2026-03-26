@@ -10,7 +10,7 @@ use std::{
 
 use anyhow::{Context, Result};
 use common::{
-    load_events_from_path, publish_json_batch, DeviceEvent, NatsPublisher, Publisher,
+    load_events_from_path, publish_json_batch, DeviceEvidence, DeviceEvent, NatsPublisher, Publisher,
     DEVICE_DISCOVERED_SUBJECT, DEVICE_UPDATED_SUBJECT,
 };
 use serde::Deserialize;
@@ -154,6 +154,7 @@ pub fn discover_live_devices(config: &Config) -> Result<Vec<DeviceEvent>> {
                 device_type: device_type.clone(),
                 profile_id: profile_id.clone(),
                 managed: false,
+                evidence: build_device_evidence(&neighbor.dst, &device_type, &open_ports),
                 observed_at: now.clone(),
             });
 
@@ -172,6 +173,10 @@ pub fn discover_live_devices(config: &Config) -> Result<Vec<DeviceEvent>> {
             if entry.device_type == "unknown" && device_type != "unknown" {
                 entry.device_type = device_type;
                 entry.profile_id = profile_id;
+            }
+
+            if entry.evidence.open_ports.is_empty() && !open_ports.is_empty() {
+                entry.evidence = build_device_evidence(&neighbor.dst, &entry.device_type, &open_ports);
             }
 
             entry.observed_at = now.clone();
@@ -477,6 +482,37 @@ fn fingerprint_host(ip: &str, timeout: Duration) -> Vec<u16> {
         .collect()
 }
 
+fn build_device_evidence(ip: &str, device_type: &str, open_ports: &[u16]) -> DeviceEvidence {
+    let services = infer_services(open_ports);
+    let candidate_snapshot_urls = snapshot_urls(ip, open_ports, device_type);
+    let candidate_stream_urls = stream_urls(ip, open_ports, device_type);
+    let preview_supported = !candidate_snapshot_urls.is_empty() || !candidate_stream_urls.is_empty();
+    let preview_requires_auth = preview_supported;
+    let confidence = match device_type {
+        "camera" => {
+            if has_any_port(open_ports, &[554, 8554, 80, 443, 8080]) {
+                "high"
+            } else {
+                "medium"
+            }
+        }
+        "router" | "computer" => "high",
+        "iot" | "tv" | "printer" => "medium",
+        _ => "low",
+    }
+    .to_string();
+
+    DeviceEvidence {
+        open_ports: open_ports.to_vec(),
+        services,
+        candidate_snapshot_urls,
+        candidate_stream_urls,
+        preview_supported,
+        preview_requires_auth,
+        confidence,
+    }
+}
+
 fn tcp_port_open(ip: Ipv4Addr, port: u16, timeout: Duration) -> bool {
     let address = SocketAddr::new(IpAddr::V4(ip), port);
     TcpStream::connect_timeout(&address, timeout).is_ok()
@@ -488,6 +524,118 @@ fn has_any_port(open_ports: &[u16], candidates: &[u16]) -> bool {
 
 fn matches_vendor(vendor: &str, patterns: &[&str]) -> bool {
     !vendor.is_empty() && patterns.iter().any(|pattern| vendor.contains(pattern))
+}
+
+fn infer_services(open_ports: &[u16]) -> Vec<String> {
+    let mut services = Vec::new();
+    for port in open_ports {
+        let service = match port {
+            53 => Some("dns"),
+            80 => Some("http"),
+            139 => Some("netbios"),
+            443 => Some("https"),
+            445 => Some("smb"),
+            515 => Some("lpd"),
+            554 | 8554 => Some("rtsp"),
+            631 => Some("ipp"),
+            7000 => Some("airplay"),
+            8008 | 8009 => Some("cast"),
+            8080 => Some("http-alt"),
+            8443 => Some("https-alt"),
+            8883 => Some("mqtts"),
+            9100 => Some("jetdirect"),
+            1883 => Some("mqtt"),
+            37777 => Some("dvr"),
+            5000 | 5001 => Some("nas"),
+            _ => None,
+        };
+
+        if let Some(service) = service {
+            if !services.iter().any(|item| item == service) {
+                services.push(service.to_string());
+            }
+        }
+    }
+
+    services
+}
+
+fn snapshot_urls(ip: &str, open_ports: &[u16], device_type: &str) -> Vec<String> {
+    if device_type != "camera" {
+        return Vec::new();
+    }
+
+    let mut urls = Vec::new();
+    let ports = if open_ports.is_empty() {
+        vec![80, 8080, 443]
+    } else {
+        open_ports.to_vec()
+    };
+
+    for port in ports {
+        match port {
+            80 | 8080 => {
+                let scheme = "http";
+                for path in [
+                    "/snapshot.jpg",
+                    "/cgi-bin/snapshot.cgi",
+                    "/ISAPI/Streaming/channels/101/picture",
+                    "/webcapture.jpg?command=snap&channel=1",
+                ] {
+                    urls.push(format!("{scheme}://{ip}:{port}{path}"));
+                }
+            }
+            443 | 8443 => {
+                let scheme = "https";
+                for path in [
+                    "/snapshot.jpg",
+                    "/cgi-bin/snapshot.cgi",
+                    "/ISAPI/Streaming/channels/101/picture",
+                ] {
+                    urls.push(format!("{scheme}://{ip}:{port}{path}"));
+                }
+            }
+            _ => {}
+        }
+    }
+
+    urls
+}
+
+fn stream_urls(ip: &str, open_ports: &[u16], device_type: &str) -> Vec<String> {
+    if device_type != "camera" {
+        return Vec::new();
+    }
+
+    let mut urls = Vec::new();
+    let ports = if open_ports.is_empty() {
+        vec![554, 8554]
+    } else {
+        open_ports.to_vec()
+    };
+
+    for port in ports {
+        match port {
+            554 | 8554 => {
+                for path in [
+                    "/",
+                    "/stream1",
+                    "/h264Preview_01_main",
+                    "/cam/realmonitor?channel=1&subtype=0",
+                    "/live/ch0",
+                ] {
+                    urls.push(format!("rtsp://{ip}:{port}{path}"));
+                }
+            }
+            80 | 8080 => {
+                urls.push(format!("http://{ip}:{port}/video"));
+                urls.push(format!("http://{ip}:{port}/mjpeg"));
+            }
+            _ => {}
+        }
+    }
+
+    urls
 }
 
 fn make_device_id(mac: Option<&str>, ip: &str) -> String {
@@ -654,5 +802,28 @@ mod tests {
             ),
             "computer"
         );
+    }
+
+    #[test]
+    fn camera_evidence_exposes_preview_candidates() {
+        let evidence = build_device_evidence("192.168.1.21", "camera", &[80, 554]);
+        assert!(evidence.preview_supported);
+        assert!(evidence.preview_requires_auth);
+        assert!(evidence
+            .candidate_snapshot_urls
+            .iter()
+            .any(|url| url.contains("snapshot")));
+        assert!(evidence
+            .candidate_stream_urls
+            .iter()
+            .any(|url| url.starts_with("rtsp://192.168.1.21:554")));
+    }
+
+    #[test]
+    fn camera_evidence_falls_back_to_default_preview_paths() {
+        let evidence = build_device_evidence("192.168.1.21", "camera", &[]);
+        assert!(evidence.preview_supported);
+        assert!(!evidence.candidate_snapshot_urls.is_empty());
+        assert!(!evidence.candidate_stream_urls.is_empty());
     }
 }

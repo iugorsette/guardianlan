@@ -1,8 +1,8 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { finalize, forkJoin } from 'rxjs';
+import { finalize, forkJoin, Observable } from 'rxjs';
 
-import { Alert, DashboardSnapshot, Device, DnsEvent, FlowEvent } from './models';
+import { Alert, DashboardSnapshot, Device, DeviceInsight, DnsEvent, FlowEvent } from './models';
 
 @Injectable({ providedIn: 'root' })
 export class DashboardApiService {
@@ -12,6 +12,7 @@ export class DashboardApiService {
   readonly alerts = signal<Alert[]>([]);
   readonly dnsEvents = signal<DnsEvent[]>([]);
   readonly flowEvents = signal<FlowEvent[]>([]);
+  readonly deviceInsights = signal<Record<string, DeviceInsight[]>>({});
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
   readonly lastLoadedAt = signal<Date | null>(null);
@@ -84,11 +85,39 @@ export class DashboardApiService {
   }
 
   private applySnapshot(snapshot: DashboardSnapshot): void {
-    this.devices.set(snapshot.devices ?? []);
+    const devices = snapshot.devices ?? [];
+    this.devices.set(devices);
     this.alerts.set(snapshot.alerts ?? []);
     this.dnsEvents.set(snapshot.dnsEvents ?? []);
     this.flowEvents.set(snapshot.flowEvents ?? []);
     this.lastLoadedAt.set(new Date());
+    this.loadDeviceInsights(devices);
+  }
+
+  private loadDeviceInsights(devices: Device[]): void {
+    const interestingDevices = devices.filter((device) =>
+      ['camera', 'iot', 'router', 'printer', 'tv'].includes(device.device_type)
+    );
+
+    if (interestingDevices.length === 0) {
+      this.deviceInsights.set({});
+      return;
+    }
+
+    const requests = interestingDevices.reduce<Record<string, Observable<DeviceInsight[]>>>(
+      (accumulator, device) => {
+        accumulator[device.id] = this.http.get<DeviceInsight[]>(`/api/devices/${device.id}/insights`);
+        return accumulator;
+      },
+      {}
+    );
+
+    forkJoin(requests).subscribe({
+      next: (insights) => this.deviceInsights.set(insights),
+      error: () => {
+        this.deviceInsights.set({});
+      }
+    });
   }
 
   private messageFromError(error: unknown, fallback: string): string {
@@ -99,4 +128,3 @@ export class DashboardApiService {
     return fallback;
   }
 }
-

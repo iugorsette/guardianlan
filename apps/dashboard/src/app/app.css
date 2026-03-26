@@ -159,6 +159,13 @@ select {
   margin-bottom: 24px;
 }
 
+.camera-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+  margin-bottom: 24px;
+}
+
 .summary-card {
   padding: 22px;
   position: relative;
@@ -246,13 +253,15 @@ select {
 }
 
 .device-list,
-.alert-list {
+.alert-list,
+.camera-list {
   display: grid;
   gap: 14px;
 }
 
 .device-card,
-.alert-card {
+.alert-card,
+.camera-card {
   display: grid;
   gap: 16px;
   padding: 18px;
@@ -347,6 +356,42 @@ select {
 .alert-copy p {
   margin: 8px 0 0;
   color: var(--text-soft);
+}
+
+.camera-summary {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.link-group {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.link-group p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+.camera-link,
+.camera-code {
+  display: block;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(154, 175, 197, 0.12);
+  color: #9fe5ff;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.camera-code {
+  color: var(--text-soft);
+  font-size: 0.85rem;
 }
 
 .table-scroll {
