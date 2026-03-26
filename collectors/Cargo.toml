@@ -1,0 +1,20 @@
+[workspace]
+members = ["common", "discovery-collector", "dns-collector", "flow-collector"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+version = "0.1.0"
+license = "MIT"
+
+[workspace.dependencies]
+anyhow = "1.0.95"
+async-nats = "0.39.0"
+async-trait = "0.1.85"
+serde = { version = "1.0.217", features = ["derive"] }
+serde_json = "1.0.135"
+tempfile = "3.15.0"
+time = { version = "0.3.47", features = ["formatting"] }
+tokio = { version = "1.43.0", features = ["macros", "rt-multi-thread", "time"] }
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter", "fmt"] }

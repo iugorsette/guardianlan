@@ -1,0 +1,21 @@
+[
+  {
+    "device_id": "device-kid-tablet",
+    "query": "youtube.com",
+    "domain": "youtube.com",
+    "category": "streaming",
+    "resolver": "adguardhome",
+    "blocked": false,
+    "observed_at": "2026-03-26T18:03:00Z"
+  },
+  {
+    "device_id": "device-kid-tablet",
+    "query": "adult-example.test",
+    "domain": "adult-example.test",
+    "category": "adult",
+    "resolver": "8.8.8.8",
+    "blocked": false,
+    "observed_at": "2026-03-26T18:04:00Z"
+  }
+]
+

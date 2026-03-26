@@ -1,0 +1,250 @@
+<main class="shell">
+  <section class="hero">
+    <div class="hero-copy">
+      <p class="eyebrow">GuardLAN</p>
+      <h1>Seguranca de rede local e controle parental em um unico painel.</h1>
+      <p class="hero-text">
+        Monitore dispositivos, acompanhe alertas de risco, veja atividade DNS e fluxo e ajuste perfis
+        sem sair da sua rede local.
+      </p>
+      <div class="hero-line">
+        <div class="status-card">
+         <span class="status-dot" [class.is-loading]="api.loading()"></span>
+         <div>
+           <strong>Painel local</strong>
+           <p>
+             @if (api.lastLoadedAt(); as loadedAt) {
+               Ultima sincronizacao {{ loadedAt | date: 'HH:mm:ss' }}
+             } @else {
+               Aguardando primeira sincronizacao
+             }
+           </p>
+         </div>
+       </div>
+        <button class="primary-button" type="button" (click)="api.refresh()">
+          {{ api.loading() ? 'Atualizando...' : 'Atualizar agora' }}
+        </button>
+
+      </div>
+    </div>
+  </section>
+
+  @if (api.error(); as errorMessage) {
+    <section class="banner error-banner">
+      <strong>Atencao:</strong> {{ errorMessage }}
+    </section>
+  }
+
+  <section class="summary-grid">
+    <article class="summary-card accent-blue">
+      <p>Dispositivos</p>
+      <strong>{{ summary().totalDevices }}</strong>
+      <span>{{ summary().riskyDevices }} com risco elevado</span>
+    </article>
+
+    <article class="summary-card accent-amber">
+      <p>Alertas abertos</p>
+      <strong>{{ summary().openAlerts }}</strong>
+      <span>{{ summary().highAlerts }} de alta severidade</span>
+    </article>
+
+    <article class="summary-card accent-green">
+      <p>Perfis infantis</p>
+      <strong>{{ summary().childProfiles }}</strong>
+      <span>{{ summary().policyAlerts }} violacoes de politica</span>
+    </article>
+
+    <article class="summary-card accent-rose">
+      <p>IoT e cameras</p>
+      <strong>{{ summary().iotDevices }}</strong>
+      <span>{{ summary().bypassAlerts }} alertas de bypass DNS</span>
+    </article>
+  </section>
+
+  <section class="content-grid">
+    <article class="panel panel-large">
+      <header class="panel-header">
+        <div>
+          <p class="section-kicker">Inventario</p>
+          <h2>Dispositivos da rede</h2>
+        </div>
+        <span class="pill neutral">{{ devices().length }} encontrados</span>
+      </header>
+
+      <div class="device-list">
+        @for (device of devices(); track trackById($index, device)) {
+          <section class="device-card">
+            <div class="device-main">
+              <div class="device-heading">
+                <h3>{{ device.hostname || device.id }}</h3>
+                <span
+                  class="pill"
+                  [class.high]="device.risk_score >= 50"
+                  [class.medium]="device.risk_score < 50"
+                >
+                  risco {{ device.risk_score }}
+                </span>
+              </div>
+
+              <p class="device-meta">
+                {{ device.device_type }} · {{ device.vendor || 'Fabricante desconhecido' }} ·
+                {{ device.ips.join(', ') || 'Sem IP' }}
+              </p>
+
+              <div class="device-tags">
+                <span class="tag">{{ device.managed ? 'Gerenciado' : 'Nao gerenciado' }}</span>
+                <span class="tag">{{ device.mac || 'MAC indisponivel' }}</span>
+                <span class="tag">ultimo avistamento {{ device.last_seen_at | date: 'dd/MM HH:mm' }}</span>
+              </div>
+            </div>
+
+            <div class="device-actions">
+              <label>
+                Perfil
+                <select
+                  [ngModel]="profileFor(device)"
+                  (ngModelChange)="setProfile(device.id, $event)"
+                >
+                  <option value="adult">Adulto</option>
+                  <option value="child">Crianca</option>
+                  <option value="iot">IoT</option>
+                  <option value="guest">Visitante</option>
+                </select>
+              </label>
+
+              <button class="ghost-button" type="button" (click)="saveProfile(device)">
+                Salvar perfil
+              </button>
+            </div>
+          </section>
+        } @empty {
+          <div class="empty-state">
+            <h3>Nenhum dispositivo ainda</h3>
+            <p>Assim que os collectors publicarem eventos, o inventario aparece aqui.</p>
+          </div>
+        }
+      </div>
+    </article>
+
+    <article class="panel">
+      <header class="panel-header">
+        <div>
+          <p class="section-kicker">Seguranca</p>
+          <h2>Alertas recentes</h2>
+        </div>
+        <span class="pill neutral">{{ alerts().length }} no historico</span>
+      </header>
+
+      <div class="alert-list">
+        @for (alert of alerts(); track trackById($index, alert)) {
+          <section class="alert-card">
+            <div class="alert-copy">
+              <div class="alert-heading">
+                <span
+                  class="pill severity"
+                  [class.high]="alert.severity === 'high'"
+                  [class.medium]="alert.severity === 'medium'"
+                >
+                  {{ alert.severity }}
+                </span>
+                <span class="pill neutral">{{ alert.status }}</span>
+              </div>
+              <h3>{{ alert.title }}</h3>
+              <p>{{ alert.device_id }} · {{ alert.created_at | date: 'dd/MM HH:mm:ss' }}</p>
+            </div>
+
+            <button
+              class="ghost-button"
+              type="button"
+              [disabled]="alert.status !== 'open'"
+              (click)="acknowledge(alert)"
+            >
+              {{ alert.status === 'open' ? 'Reconhecer' : 'Reconhecido' }}
+            </button>
+          </section>
+        } @empty {
+          <div class="empty-state">
+            <h3>Sem alertas</h3>
+            <p>Quando houver bypass DNS, exposicao suspeita ou novos dispositivos, aparece aqui.</p>
+          </div>
+        }
+      </div>
+    </article>
+  </section>
+
+  <section class="telemetry-grid">
+    <article class="panel">
+      <header class="panel-header panel-header-stack">
+        <div>
+          <p class="section-kicker">DNS</p>
+          <h2>Consultas recentes</h2>
+        </div>
+        <span class="pill neutral">{{ summary().dnsQueries }} eventos</span>
+      </header>
+
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Dispositivo</th>
+              <th>Dominio</th>
+              <th>Categoria</th>
+              <th>Resolvedor</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (event of dnsEvents(); track $index) {
+              <tr>
+                <td>{{ event.device_id }}</td>
+                <td>{{ event.domain }}</td>
+                <td>{{ event.category }}</td>
+                <td>{{ event.resolver }}</td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="4">Sem eventos DNS no momento.</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </article>
+
+    <article class="panel">
+      <header class="panel-header panel-header-stack">
+        <div>
+          <p class="section-kicker">Fluxo</p>
+          <h2>Conexoes recentes</h2>
+        </div>
+        <span class="pill neutral">{{ summary().flows }} eventos</span>
+      </header>
+
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Origem</th>
+              <th>Destino</th>
+              <th>Porta</th>
+              <th>Bytes</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (event of flowEvents(); track $index) {
+              <tr>
+                <td>{{ event.src_ip }}</td>
+                <td>{{ event.dst_ip }}</td>
+                <td>{{ event.dst_port }}/{{ event.protocol }}</td>
+                <td>{{ event.bytes_out + event.bytes_in | number }}</td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="4">Sem eventos de fluxo no momento.</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+</main>

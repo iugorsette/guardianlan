@@ -1,0 +1,40 @@
+:root {
+  color-scheme: dark;
+  --bg-start: #08111b;
+  --bg-mid: #10243b;
+  --bg-end: #091018;
+  --text-main: #f3f7fb;
+  --text-soft: #b8c6d4;
+  --text-muted: #8193a6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: 'Aptos', 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', sans-serif;
+  color: var(--text-main);
+  background:
+    radial-gradient(circle at top left, rgba(111, 168, 255, 0.25), transparent 28%),
+    radial-gradient(circle at top right, rgba(110, 242, 182, 0.18), transparent 24%),
+    linear-gradient(160deg, var(--bg-start), var(--bg-mid) 52%, var(--bg-end));
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 30px 30px;
+  mask-image: radial-gradient(circle at center, black, transparent 78%);
+}

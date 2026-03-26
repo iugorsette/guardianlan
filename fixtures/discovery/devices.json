@@ -1,0 +1,25 @@
+[
+  {
+    "id": "device-baby-cam",
+    "mac": "AA:BB:CC:DD:EE:01",
+    "ips": ["192.168.1.20"],
+    "hostname": "baby-cam",
+    "vendor": "GenericCam",
+    "device_type": "camera",
+    "profile_id": "iot",
+    "managed": false,
+    "observed_at": "2026-03-26T18:00:00Z"
+  },
+  {
+    "id": "device-kid-tablet",
+    "mac": "AA:BB:CC:DD:EE:02",
+    "ips": ["192.168.1.21"],
+    "hostname": "kid-tablet",
+    "vendor": "FamilyTab",
+    "device_type": "tablet",
+    "profile_id": "child",
+    "managed": false,
+    "observed_at": "2026-03-26T18:01:00Z"
+  }
+]
+

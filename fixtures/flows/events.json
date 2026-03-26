@@ -1,0 +1,22 @@
+[
+  {
+    "device_id": "device-baby-cam",
+    "src_ip": "192.168.1.20",
+    "dst_ip": "203.0.113.44",
+    "dst_port": 554,
+    "protocol": "tcp",
+    "bytes_in": 4096,
+    "bytes_out": 8192,
+    "observed_at": "2026-03-26T18:05:00Z"
+  },
+  {
+    "device_id": "device-kid-tablet",
+    "src_ip": "192.168.1.21",
+    "dst_ip": "198.51.100.10",
+    "dst_port": 443,
+    "protocol": "tcp",
+    "bytes_in": 12000,
+    "bytes_out": 6400,
+    "observed_at": "2026-03-26T18:05:30Z"
+  }
+]
