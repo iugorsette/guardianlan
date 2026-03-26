@@ -267,6 +267,7 @@ dependencies = [
  "async-nats",
  "async-trait",
  "common",
+ "serde_json",
  "tempfile",
  "tokio",
  "tracing",

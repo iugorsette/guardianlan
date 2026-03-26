@@ -13,8 +13,11 @@ type Store interface {
 	UpsertDevice(context.Context, domain.Device) (domain.Device, bool, error)
 	GetDevice(context.Context, string) (domain.Device, error)
 	ListDevices(context.Context) ([]domain.Device, error)
+	GetProfile(context.Context, string) (domain.Profile, error)
+	ListProfiles(context.Context) ([]domain.Profile, error)
 	UpdateDeviceProfile(context.Context, string, string) (domain.Device, error)
 	UpdateDeviceName(context.Context, string, string) (domain.Device, error)
+	UpdateDeviceDNSPolicy(context.Context, string, domain.DNSPolicy) (domain.Device, error)
 	StoreDNSEvent(context.Context, domain.DNSEvent) error
 	ListDNSEvents(context.Context, int) ([]domain.DNSEvent, error)
 	StoreFlowEvent(context.Context, domain.FlowEvent) error

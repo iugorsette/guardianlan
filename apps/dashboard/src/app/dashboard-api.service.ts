@@ -2,7 +2,7 @@ import { computed, inject, Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { finalize, forkJoin, Observable } from 'rxjs';
 
-import { Alert, DashboardSnapshot, Device, DeviceInsight, DnsEvent, FlowEvent } from './models';
+import { Alert, DashboardSnapshot, Device, DeviceInsight, DNSPolicy, DnsEvent, FlowEvent, Profile } from './models';
 
 @Injectable({ providedIn: 'root' })
 export class DashboardApiService {
@@ -12,6 +12,7 @@ export class DashboardApiService {
   readonly alerts = signal<Alert[]>([]);
   readonly dnsEvents = signal<DnsEvent[]>([]);
   readonly flowEvents = signal<FlowEvent[]>([]);
+  readonly profiles = signal<Profile[]>([]);
   readonly deviceInsights = signal<Record<string, DeviceInsight[]>>({});
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
@@ -42,6 +43,7 @@ export class DashboardApiService {
     this.error.set(null);
 
     forkJoin({
+      profiles: this.http.get<Profile[] | null>('/api/profiles'),
       devices: this.http.get<Device[] | null>('/api/devices'),
       alerts: this.http.get<Alert[] | null>('/api/alerts'),
       dnsEvents: this.http.get<DnsEvent[] | null>('/api/activity/dns'),
@@ -86,6 +88,21 @@ export class DashboardApiService {
       });
   }
 
+  updateDeviceDNSPolicy(deviceId: string, dnsPolicy: DNSPolicy): void {
+    this.http
+      .post<Device>(`/api/devices/${deviceId}/dns-policy`, { dns_policy: dnsPolicy })
+      .subscribe({
+        next: (device) => {
+          this.devices.update((devices) =>
+            devices.map((current) => (current.id === device.id ? device : current))
+          );
+        },
+        error: (error: unknown) => {
+          this.error.set(this.messageFromError(error, 'Nao foi possivel atualizar a politica DNS.'));
+        }
+      });
+  }
+
   acknowledgeAlert(alertId: string): void {
     this.http.post<Alert>(`/api/alerts/${alertId}/ack`, {}).subscribe({
       next: (alert) => {
@@ -101,6 +118,7 @@ export class DashboardApiService {
 
   private applySnapshot(snapshot: DashboardSnapshot): void {
     const devices = snapshot.devices ?? [];
+    this.profiles.set(snapshot.profiles ?? []);
     this.devices.set(devices);
     this.alerts.set(snapshot.alerts ?? []);
     this.dnsEvents.set(snapshot.dnsEvents ?? []);

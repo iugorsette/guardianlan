@@ -57,9 +57,10 @@
 .hero-line {
   margin-top: 16px;
   display: flex;
+  flex-direction: column;
   justify-content: end;
   gap: 32px;
-  align-items: center;
+  align-items: stretch;
 }
 .hero-text {
   margin: 0;
@@ -71,7 +72,8 @@
 .primary-button,
 .ghost-button,
 input,
-select {
+select,
+textarea {
   border-radius: 16px;
   border: 1px solid transparent;
   font: inherit;
@@ -272,8 +274,8 @@ select {
 }
 
 .device-card {
-  grid-template-columns: minmax(0, 1fr) 220px;
-  align-items: center;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  align-items: start;
 }
 
 .device-heading,
@@ -342,12 +344,33 @@ select {
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
   padding: 12px 14px;
   background: rgba(8, 17, 28, 0.9);
   border-color: rgba(154, 175, 197, 0.14);
   color: var(--text-main);
+}
+
+textarea {
+  resize: vertical;
+  min-height: 72px;
+}
+
+.policy-editor {
+  display: grid;
+  gap: 10px;
+  padding-top: 6px;
+}
+
+.checkbox-row {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+}
+
+.checkbox-row input {
+  width: auto;
 }
 
 .alert-card {

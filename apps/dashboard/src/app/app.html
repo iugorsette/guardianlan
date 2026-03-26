@@ -93,6 +93,7 @@
 
               <div class="device-tags">
                 <span class="tag">{{ device.managed ? 'Gerenciado' : 'Nao gerenciado' }}</span>
+                <span class="tag">perfil {{ profileLabel(device.profile_id) }}</span>
                 <span class="tag">{{ device.mac || 'MAC indisponivel' }}</span>
                 <span class="tag">ultimo avistamento {{ device.last_seen_at | date: 'dd/MM HH:mm' }}</span>
               </div>
@@ -119,16 +120,60 @@
                   [ngModel]="profileFor(device)"
                   (ngModelChange)="setProfile(device.id, $event)"
                 >
-                  <option value="adult">Adulto</option>
-                  <option value="child">Crianca</option>
-                  <option value="iot">IoT</option>
-                  <option value="guest">Visitante</option>
+                  @for (profile of profileOptions(); track profile.id) {
+                    <option [value]="profile.id">{{ profile.name }}</option>
+                  }
                 </select>
               </label>
 
               <button class="ghost-button" type="button" (click)="saveProfile(device)">
                 Salvar perfil
               </button>
+
+              <div class="policy-editor">
+                <label>
+                  Blacklist de dominios
+                  <textarea
+                    rows="3"
+                    [ngModel]="dnsPolicyFor(device).blockedDomains"
+                    (ngModelChange)="setDNSPolicyDraft(device.id, { blockedDomains: $event })"
+                    placeholder="xvideos.com&#10;pornhub.com"
+                  ></textarea>
+                </label>
+
+                <label>
+                  Whitelist de dominios
+                  <textarea
+                    rows="3"
+                    [ngModel]="dnsPolicyFor(device).allowedDomains"
+                    (ngModelChange)="setDNSPolicyDraft(device.id, { allowedDomains: $event })"
+                    placeholder="escola.local&#10;googleclassroom.com"
+                  ></textarea>
+                </label>
+
+                <label>
+                  Categorias bloqueadas
+                  <textarea
+                    rows="2"
+                    [ngModel]="dnsPolicyFor(device).blockedCategories"
+                    (ngModelChange)="setDNSPolicyDraft(device.id, { blockedCategories: $event })"
+                    placeholder="adult&#10;gambling"
+                  ></textarea>
+                </label>
+
+                <label class="checkbox-row">
+                  <input
+                    type="checkbox"
+                    [ngModel]="dnsPolicyFor(device).safeSearch"
+                    (ngModelChange)="setDNSPolicyDraft(device.id, { safeSearch: !!$event })"
+                  />
+                  <span>Forcar Safe Search neste dispositivo</span>
+                </label>
+
+                <button class="ghost-button" type="button" (click)="saveDNSPolicy(device)">
+                  Salvar politica DNS
+                </button>
+              </div>
             </div>
           </section>
         } @empty {
@@ -208,6 +253,7 @@
               </div>
 
               <p class="device-meta">
+                {{ device.display_name || device.hostname || device.id }} ·
                 {{ device.vendor || 'Fabricante desconhecido' }} · {{ device.ips.join(', ') || 'Sem IP' }}
               </p>
 
@@ -278,6 +324,7 @@
           <thead>
             <tr>
               <th>Dispositivo</th>
+              <th>Cliente</th>
               <th>Dominio</th>
               <th>Categoria</th>
               <th>Resolvedor</th>
@@ -287,13 +334,14 @@
             @for (event of dnsEvents(); track $index) {
               <tr>
                 <td>{{ event.device_id }}</td>
+                <td>{{ event.client_name || event.client_ip || 'desconhecido' }}</td>
                 <td>{{ event.domain }}</td>
                 <td>{{ event.category }}</td>
                 <td>{{ event.resolver }}</td>
               </tr>
             } @empty {
               <tr>
-                <td colspan="4">Sem eventos DNS no momento.</td>
+                <td colspan="5">Sem eventos DNS no momento.</td>
               </tr>
             }
           </tbody>

@@ -35,6 +35,27 @@ func NewPostgresStore(ctx context.Context, databaseURL string) (*PostgresStore, 
 		return nil, fmt.Errorf("migrate devices display_name: %w", err)
 	}
 
+	if _, err := pool.Exec(ctx, `
+		ALTER TABLE devices
+		ADD COLUMN IF NOT EXISTS dns_policy_override JSONB NOT NULL DEFAULT '{}'::jsonb
+	`); err != nil {
+		return nil, fmt.Errorf("migrate devices dns_policy_override: %w", err)
+	}
+
+	if _, err := pool.Exec(ctx, `
+		ALTER TABLE dns_events
+		ADD COLUMN IF NOT EXISTS client_ip TEXT NOT NULL DEFAULT ''
+	`); err != nil {
+		return nil, fmt.Errorf("migrate dns_events client_ip: %w", err)
+	}
+
+	if _, err := pool.Exec(ctx, `
+		ALTER TABLE dns_events
+		ADD COLUMN IF NOT EXISTS client_name TEXT NOT NULL DEFAULT ''
+	`); err != nil {
+		return nil, fmt.Errorf("migrate dns_events client_name: %w", err)
+	}
+
 	return &PostgresStore{pool: pool}, nil
 }
 
@@ -53,6 +74,10 @@ func (s *PostgresStore) UpsertDevice(ctx context.Context, device domain.Device) 
 	if err != nil {
 		return domain.Device{}, false, fmt.Errorf("marshal ips: %w", err)
 	}
+	policyJSON, err := json.Marshal(domain.NormalizeDNSPolicy(device.DNSPolicyOverride))
+	if err != nil {
+		return domain.Device{}, false, fmt.Errorf("marshal dns policy override: %w", err)
+	}
 
 	if exists {
 		_, err = s.pool.Exec(ctx, `
@@ -65,21 +90,22 @@ func (s *PostgresStore) UpsertDevice(ctx context.Context, device domain.Device) 
 			    profile_id = $7,
 			    managed = $8,
 			    risk_score = $9,
-			    last_seen_at = $10,
+			    dns_policy_override = COALESCE(NULLIF(dns_policy_override, '{}'::jsonb), $10::jsonb, '{}'::jsonb),
+			    last_seen_at = $11,
 			    updated_at = NOW()
 			WHERE id = $1
-		`, device.ID, device.MAC, string(ipsJSON), device.Hostname, device.Vendor, device.DeviceType, device.ProfileID, device.Managed, device.RiskScore, device.LastSeen)
+		`, device.ID, device.MAC, string(ipsJSON), device.Hostname, device.Vendor, device.DeviceType, device.ProfileID, device.Managed, device.RiskScore, string(policyJSON), device.LastSeen)
 		if err != nil {
 			return domain.Device{}, false, fmt.Errorf("update device: %w", err)
 		}
 	} else {
 		_, err = s.pool.Exec(ctx, `
 			INSERT INTO devices (
-				id, mac, ips, display_name, hostname, vendor, device_type, profile_id, managed, risk_score, first_seen_at, last_seen_at
+				id, mac, ips, display_name, hostname, vendor, device_type, profile_id, dns_policy_override, managed, risk_score, first_seen_at, last_seen_at
 			) VALUES (
-				$1, $2, $3::jsonb, $4, $5, $6, $7, $8, $9, $10, $11, $12
+				$1, $2, $3::jsonb, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13
 			)
-		`, device.ID, device.MAC, string(ipsJSON), device.DisplayName, device.Hostname, device.Vendor, device.DeviceType, device.ProfileID, device.Managed, device.RiskScore, device.FirstSeen, device.LastSeen)
+		`, device.ID, device.MAC, string(ipsJSON), device.DisplayName, device.Hostname, device.Vendor, device.DeviceType, device.ProfileID, string(policyJSON), device.Managed, device.RiskScore, device.FirstSeen, device.LastSeen)
 		if err != nil {
 			return domain.Device{}, false, fmt.Errorf("insert device: %w", err)
 		}
@@ -91,7 +117,7 @@ func (s *PostgresStore) UpsertDevice(ctx context.Context, device domain.Device) 
 
 func (s *PostgresStore) GetDevice(ctx context.Context, id string) (domain.Device, error) {
 	row := s.pool.QueryRow(ctx, `
-		SELECT id, mac, ips, display_name, hostname, vendor, device_type, profile_id, managed, risk_score, first_seen_at, last_seen_at
+		SELECT id, mac, ips, display_name, hostname, vendor, device_type, profile_id, dns_policy_override, managed, risk_score, first_seen_at, last_seen_at
 		FROM devices
 		WHERE id = $1
 	`, id)
@@ -106,7 +132,7 @@ func (s *PostgresStore) GetDevice(ctx context.Context, id string) (domain.Device
 
 func (s *PostgresStore) ListDevices(ctx context.Context) ([]domain.Device, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, mac, ips, display_name, hostname, vendor, device_type, profile_id, managed, risk_score, first_seen_at, last_seen_at
+		SELECT id, mac, ips, display_name, hostname, vendor, device_type, profile_id, dns_policy_override, managed, risk_score, first_seen_at, last_seen_at
 		FROM devices
 		ORDER BY last_seen_at DESC
 	`)
@@ -140,6 +166,39 @@ func (s *PostgresStore) UpdateDeviceProfile(ctx context.Context, id string, prof
 	return s.GetDevice(ctx, id)
 }
 
+func (s *PostgresStore) GetProfile(ctx context.Context, id string) (domain.Profile, error) {
+	row := s.pool.QueryRow(ctx, `
+		SELECT id, name, kind, schedule, dns_policy, alert_policy
+		FROM profiles
+		WHERE id = $1
+	`, id)
+
+	return scanProfile(row)
+}
+
+func (s *PostgresStore) ListProfiles(ctx context.Context) ([]domain.Profile, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT id, name, kind, schedule, dns_policy, alert_policy
+		FROM profiles
+		ORDER BY name ASC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("list profiles: %w", err)
+	}
+	defer rows.Close()
+
+	var profiles []domain.Profile
+	for rows.Next() {
+		profile, err := scanProfile(rows)
+		if err != nil {
+			return nil, err
+		}
+		profiles = append(profiles, profile)
+	}
+
+	return profiles, rows.Err()
+}
+
 func (s *PostgresStore) UpdateDeviceName(ctx context.Context, id string, displayName string) (domain.Device, error) {
 	commandTag, err := s.pool.Exec(ctx, "UPDATE devices SET display_name = $2, updated_at = NOW() WHERE id = $1", id, displayName)
 	if err != nil {
@@ -153,11 +212,29 @@ func (s *PostgresStore) UpdateDeviceName(ctx context.Context, id string, display
 	return s.GetDevice(ctx, id)
 }
 
+func (s *PostgresStore) UpdateDeviceDNSPolicy(ctx context.Context, id string, policy domain.DNSPolicy) (domain.Device, error) {
+	policyJSON, err := json.Marshal(domain.NormalizeDNSPolicy(policy))
+	if err != nil {
+		return domain.Device{}, fmt.Errorf("marshal dns policy override: %w", err)
+	}
+
+	commandTag, err := s.pool.Exec(ctx, "UPDATE devices SET dns_policy_override = $2::jsonb, updated_at = NOW() WHERE id = $1", id, string(policyJSON))
+	if err != nil {
+		return domain.Device{}, fmt.Errorf("update device dns policy: %w", err)
+	}
+
+	if commandTag.RowsAffected() == 0 {
+		return domain.Device{}, pgx.ErrNoRows
+	}
+
+	return s.GetDevice(ctx, id)
+}
+
 func (s *PostgresStore) StoreDNSEvent(ctx context.Context, event domain.DNSEvent) error {
 	_, err := s.pool.Exec(ctx, `
-		INSERT INTO dns_events (id, device_id, query, domain, category, resolver, blocked, observed_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-	`, event.ID, event.DeviceID, event.Query, event.Domain, event.Category, event.Resolver, event.Blocked, event.ObservedAt)
+		INSERT INTO dns_events (id, device_id, client_ip, client_name, query, domain, category, resolver, blocked, observed_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	`, event.ID, event.DeviceID, event.ClientIP, event.ClientName, event.Query, event.Domain, event.Category, event.Resolver, event.Blocked, event.ObservedAt)
 	if err != nil {
 		if isUniqueViolation(err) {
 			return ErrAlreadyExists
@@ -170,7 +247,7 @@ func (s *PostgresStore) StoreDNSEvent(ctx context.Context, event domain.DNSEvent
 
 func (s *PostgresStore) ListDNSEvents(ctx context.Context, limit int) ([]domain.DNSEvent, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, device_id, query, domain, category, resolver, blocked, observed_at
+		SELECT id, device_id, client_ip, client_name, query, domain, category, resolver, blocked, observed_at
 		FROM dns_events
 		ORDER BY observed_at DESC
 		LIMIT $1
@@ -183,7 +260,7 @@ func (s *PostgresStore) ListDNSEvents(ctx context.Context, limit int) ([]domain.
 	var events []domain.DNSEvent
 	for rows.Next() {
 		var event domain.DNSEvent
-		if err := rows.Scan(&event.ID, &event.DeviceID, &event.Query, &event.Domain, &event.Category, &event.Resolver, &event.Blocked, &event.ObservedAt); err != nil {
+		if err := rows.Scan(&event.ID, &event.DeviceID, &event.ClientIP, &event.ClientName, &event.Query, &event.Domain, &event.Category, &event.Resolver, &event.Blocked, &event.ObservedAt); err != nil {
 			return nil, fmt.Errorf("scan dns event: %w", err)
 		}
 		events = append(events, event)
@@ -354,7 +431,8 @@ func scanDevice(scanner interface {
 }) (domain.Device, error) {
 	var device domain.Device
 	var ipsJSON []byte
-	err := scanner.Scan(&device.ID, &device.MAC, &ipsJSON, &device.DisplayName, &device.Hostname, &device.Vendor, &device.DeviceType, &device.ProfileID, &device.Managed, &device.RiskScore, &device.FirstSeen, &device.LastSeen)
+	var policyJSON []byte
+	err := scanner.Scan(&device.ID, &device.MAC, &ipsJSON, &device.DisplayName, &device.Hostname, &device.Vendor, &device.DeviceType, &device.ProfileID, &policyJSON, &device.Managed, &device.RiskScore, &device.FirstSeen, &device.LastSeen)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return domain.Device{}, err
@@ -365,8 +443,50 @@ func scanDevice(scanner interface {
 	if err := json.Unmarshal(ipsJSON, &device.IPs); err != nil {
 		return domain.Device{}, fmt.Errorf("unmarshal device ips: %w", err)
 	}
+	if len(policyJSON) > 0 {
+		if err := json.Unmarshal(policyJSON, &device.DNSPolicyOverride); err != nil {
+			return domain.Device{}, fmt.Errorf("unmarshal device dns policy override: %w", err)
+		}
+	}
 
 	return device, nil
+}
+
+func scanProfile(scanner interface {
+	Scan(...any) error
+}) (domain.Profile, error) {
+	var profile domain.Profile
+	var scheduleJSON []byte
+	var dnsPolicyJSON []byte
+	var alertPolicyJSON []byte
+	err := scanner.Scan(&profile.ID, &profile.Name, &profile.Kind, &scheduleJSON, &dnsPolicyJSON, &alertPolicyJSON)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.Profile{}, err
+		}
+		return domain.Profile{}, fmt.Errorf("scan profile: %w", err)
+	}
+
+	if len(scheduleJSON) == 0 {
+		profile.Schedule = map[string]any{}
+	} else if err := json.Unmarshal(scheduleJSON, &profile.Schedule); err != nil {
+		return domain.Profile{}, fmt.Errorf("unmarshal profile schedule: %w", err)
+	}
+
+	if len(dnsPolicyJSON) > 0 {
+		if err := json.Unmarshal(dnsPolicyJSON, &profile.DNSPolicy); err != nil {
+			return domain.Profile{}, fmt.Errorf("unmarshal profile dns policy: %w", err)
+		}
+	}
+	profile.DNSPolicy = domain.NormalizeDNSPolicy(profile.DNSPolicy)
+
+	if len(alertPolicyJSON) > 0 {
+		if err := json.Unmarshal(alertPolicyJSON, &profile.AlertPolicy); err != nil {
+			return domain.Profile{}, fmt.Errorf("unmarshal profile alert policy: %w", err)
+		}
+	}
+
+	return profile, nil
 }
 
 func scanAlert(scanner interface {

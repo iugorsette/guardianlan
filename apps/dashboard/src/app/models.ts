@@ -9,8 +9,25 @@ export interface Device {
   profile_id: string;
   managed: boolean;
   risk_score: number;
+  dns_policy_override: DNSPolicy;
   first_seen_at: string;
   last_seen_at: string;
+}
+
+export interface DNSPolicy {
+  safe_search: boolean;
+  blocked_categories?: string[];
+  blocked_domains?: string[];
+  allowed_domains?: string[];
+}
+
+export interface Profile {
+  id: string;
+  name: string;
+  kind: string;
+  schedule: Record<string, unknown>;
+  dns_policy: DNSPolicy;
+  alert_policy: Record<string, unknown>;
 }
 
 export interface DeviceEvidence {
@@ -48,6 +65,8 @@ export interface Alert {
 export interface DnsEvent {
   id?: string;
   device_id: string;
+  client_ip?: string;
+  client_name?: string;
   query: string;
   domain: string;
   category: string;
@@ -69,6 +88,7 @@ export interface FlowEvent {
 }
 
 export interface DashboardSnapshot {
+  profiles?: Profile[] | null;
   devices: Device[] | null;
   alerts: Alert[] | null;
   dnsEvents: DnsEvent[] | null;

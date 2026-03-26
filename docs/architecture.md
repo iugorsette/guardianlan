@@ -22,8 +22,9 @@ Acima da arquitetura tecnica, o produto segue uma intencao clara:
   - futuro: leases do roteador, mDNS, SSDP e conectores mais ricos
 - `dns-collector`
   - publica `network.dns.query_observed`
-  - hoje usa fixture/export de queries
-  - futuro: AdGuard Home query log, indicadores de bypass e DoH
+  - hoje usa fixture ou querylog JSON/JSONL do `AdGuard Home`
+  - envia `client_ip` e `client_name` quando disponiveis para correlacao no control plane
+  - futuro: indicadores mais fortes de bypass e DoH
 - `flow-collector`
   - publica `network.flow.observed`
   - hoje usa fixture/export de fluxo
@@ -32,11 +33,13 @@ Acima da arquitetura tecnica, o produto segue uma intencao clara:
   - consome eventos do `NATS`
   - atualiza inventario em `PostgreSQL`
   - gera observacoes e alertas
+  - resolve eventos DNS para dispositivos reais por IP/nome
+  - combina perfil base com override DNS por dispositivo
   - expõe API HTTP local
 - `dashboard`
   - consome a API local via `/api`
   - mostra inventario, alertas, DNS e fluxo
-  - permite ajustar perfil do dispositivo e reconhecer alerta
+  - permite ajustar perfil, nome amigavel, politica DNS e reconhecer alerta
 
 ## Fluxo principal
 

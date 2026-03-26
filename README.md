@@ -27,6 +27,7 @@ O briefing detalhado esta em [docs/product-brief.md](/home/sette/github/parental
 - `Collectors` em Rust para descoberta, DNS e fluxo publicando eventos no `NATS`
 - `Control plane` em Go para inventário, correlação, alertas e API local
 - `Dashboard` em Angular para operar dispositivos, alertas e telemetria local
+- politicas DNS por dispositivo com `blacklist`, `whitelist`, categorias bloqueadas e `Safe Search`
 - `PostgreSQL` para estado durável
 - `Docker Compose` para subir tudo de forma previsível
 - documentação inicial da arquitetura, segurança, contratos e operação
@@ -56,7 +57,9 @@ docker compose up --build
 API local:
 
 - `GET http://localhost:8080/healthz`
+- `GET http://localhost:8080/profiles`
 - `GET http://localhost:8080/devices`
+- `POST http://localhost:8080/devices/:id/name`
 - `GET http://localhost:8080/activity/dns`
 - `GET http://localhost:8080/activity/flows`
 - `GET http://localhost:8080/alerts`
@@ -103,6 +106,43 @@ Variaveis uteis no `.env`:
 - `DISCOVERY_FINGERPRINT_TIMEOUT_MS=180`
 - `DISCOVERY_VENDOR_DB=/usr/share/ieee-data/oui.txt`
 - `DASHBOARD_PORT=4201`
+
+## DNS real, blacklist e whitelist
+
+O `dns-collector` agora entende:
+
+- `DNS_SOURCE=fixture` para testes com arquivo
+- `DNS_SOURCE=adguard_file` para ler um querylog JSON/JSONL do `AdGuard Home`
+
+Variaveis uteis:
+
+- `DNS_ADGUARD_QUERYLOG=/adguard-work/querylog.json`
+- `DNS_RESOLVER_NAME=adguardhome`
+
+Quando eventos DNS chegam, o `control-plane`:
+
+- tenta vincular o evento ao dispositivo real por `client_ip` e `client_name`
+- aplica a politica do perfil base (`adult`, `child`, `iot`, `guest`)
+- aplica override por dispositivo
+- gera alertas para:
+  - `dns_bypass`
+  - dominio fora da `whitelist`
+  - dominio na `blacklist`
+  - categoria bloqueada, como `adult`
+
+No dashboard, cada dispositivo agora pode ter:
+
+- `blacklist` de dominios
+- `whitelist` de dominios
+- `categorias bloqueadas`
+- `Safe Search`
+
+Exemplo de uso:
+
+- marque um tablet como perfil `Crianca`
+- adicione `xvideos.com` na blacklist
+- opcionalmente limite a whitelist para domínios de escola/estudo
+- quando o domínio aparecer no DNS, o painel vai alertar
 
 ## Próximos passos sugeridos
 

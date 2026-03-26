@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS devices (
   vendor TEXT NOT NULL DEFAULT '',
   device_type TEXT NOT NULL DEFAULT 'unknown',
   profile_id TEXT NOT NULL DEFAULT 'guest' REFERENCES profiles(id),
+  dns_policy_override JSONB NOT NULL DEFAULT '{}'::jsonb,
   managed BOOLEAN NOT NULL DEFAULT FALSE,
   risk_score INTEGER NOT NULL DEFAULT 0,
   first_seen_at TIMESTAMPTZ NOT NULL,
@@ -27,6 +28,8 @@ CREATE TABLE IF NOT EXISTS devices (
 CREATE TABLE IF NOT EXISTS dns_events (
   id TEXT PRIMARY KEY,
   device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+  client_ip TEXT NOT NULL DEFAULT '',
+  client_name TEXT NOT NULL DEFAULT '',
   query TEXT NOT NULL,
   domain TEXT NOT NULL,
   category TEXT NOT NULL DEFAULT 'unknown',

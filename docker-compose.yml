@@ -96,12 +96,15 @@ services:
       NATS_URL: ${NATS_URL:-nats://nats:4222}
       DNS_SOURCE: ${DNS_SOURCE:-disabled}
       DNS_FIXTURE: /fixtures/queries.json
+      DNS_ADGUARD_QUERYLOG: ${DNS_ADGUARD_QUERYLOG:-/adguard-work/querylog.json}
+      DNS_RESOLVER_NAME: ${DNS_RESOLVER_NAME:-adguardhome}
       DNS_INTERVAL_SECS: 45
     depends_on:
       nats:
         condition: service_healthy
     volumes:
       - ./fixtures/dns:/fixtures:ro
+      - adguard-work:/adguard-work:ro
 
   flow-collector:
     build:

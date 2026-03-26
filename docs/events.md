@@ -22,6 +22,11 @@ Todos os eventos trafegam em `JSON` via `NATS`.
   "device_type": "camera",
   "profile_id": "iot",
   "managed": false,
+  "evidence": {
+    "candidate_snapshot_urls": ["http://192.168.1.20:80/snapshot.jpg"],
+    "preview_supported": true,
+    "preview_requires_auth": true
+  },
   "observed_at": "2026-03-26T18:00:00Z"
 }
 ```
@@ -30,7 +35,9 @@ Todos os eventos trafegam em `JSON` via `NATS`.
 
 ```json
 {
-  "device_id": "device-kid-tablet",
+  "device_id": "",
+  "client_ip": "192.168.1.25",
+  "client_name": "Tablet do Pedro",
   "query": "youtube.com",
   "domain": "youtube.com",
   "category": "streaming",
@@ -74,4 +81,3 @@ Todos os eventos trafegam em `JSON` via `NATS`.
 - Mudancas compativeis adicionam campos opcionais.
 - Mudancas incompativeis exigem novo subject ou versao declarada no payload.
 - O `control-plane` deve ignorar campos desconhecidos.
-

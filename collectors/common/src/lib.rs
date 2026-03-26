@@ -46,6 +46,10 @@ pub struct DeviceEvent {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DnsEvent {
     pub device_id: String,
+    #[serde(default)]
+    pub client_ip: String,
+    #[serde(default)]
+    pub client_name: String,
     pub query: String,
     pub domain: String,
     pub category: String,

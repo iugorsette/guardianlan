@@ -8,6 +8,10 @@ Base URL local: `http://localhost:8080`
 
 Retorna o status basico da API.
 
+### `GET /profiles`
+
+Lista os perfis base disponiveis com suas politicas DNS padrao.
+
 ### `GET /devices`
 
 Lista dispositivos conhecidos, ordenados por `last_seen_at` descendente.
@@ -28,6 +32,35 @@ Payload:
 }
 ```
 
+### `POST /devices/:id/name`
+
+Atualiza o nome amigavel do dispositivo.
+
+Payload:
+
+```json
+{
+  "display_name": "Tablet do Pedro"
+}
+```
+
+### `POST /devices/:id/dns-policy`
+
+Atualiza o override de politica DNS do dispositivo.
+
+Payload:
+
+```json
+{
+  "dns_policy": {
+    "safe_search": true,
+    "blocked_categories": ["adult", "gambling"],
+    "blocked_domains": ["xvideos.com"],
+    "allowed_domains": ["googleclassroom.com", "escola.local"]
+  }
+}
+```
+
 ### `GET /activity/dns`
 
 Lista eventos DNS recentes.
@@ -35,6 +68,16 @@ Lista eventos DNS recentes.
 Query params:
 
 - `limit` opcional, padrao `50`
+
+Campos relevantes retornados em cada evento:
+
+- `device_id`
+- `client_ip`
+- `client_name`
+- `domain`
+- `category`
+- `resolver`
+- `blocked`
 
 ### `GET /activity/flows`
 
@@ -62,4 +105,4 @@ Marca um alerta como reconhecido.
 - A API e local e nao expoe payloads brutos de rede.
 - Eventos e alertas retornam metadados normalizados e referencia de evidencia em JSON quando existir.
 - Perfis existentes na base inicial: `adult`, `child`, `iot`, `guest`.
-
+- A politica efetiva de DNS vem do perfil base mais o override opcional por dispositivo.

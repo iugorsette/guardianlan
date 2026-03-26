@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
 	"time"
@@ -64,14 +65,14 @@ func (o *Orchestrator) HandleDeviceEvent(ctx context.Context, event domain.Devic
 	}
 
 	observation := domain.Observation{
-		ID:         uuid.NewString(),
-		DeviceID:   stored.ID,
-		Source:     "discovery-collector",
-		Kind:       ternary(discovered, "device_discovered", "device_updated"),
-		Severity:   ternary(discovered && created, "medium", "info"),
-		Summary:    fmt.Sprintf("Device %s observed with profile %s", stored.HostnameOrID(), stored.ProfileID),
+		ID:          uuid.NewString(),
+		DeviceID:    stored.ID,
+		Source:      "discovery-collector",
+		Kind:        ternary(discovered, "device_discovered", "device_updated"),
+		Severity:    ternary(discovered && created, "medium", "info"),
+		Summary:     fmt.Sprintf("Device %s observed with profile %s", stored.HostnameOrID(), stored.ProfileID),
 		EvidenceRef: discoveryEvidence(stored, event.Evidence),
-		ObservedAt: observedAt,
+		ObservedAt:  observedAt,
 	}
 	if err := o.store.StoreObservation(ctx, observation); err != nil {
 		return err
@@ -127,9 +128,14 @@ func discoveryEvidence(device domain.Device, evidence domain.DeviceEvidence) map
 }
 
 func (o *Orchestrator) HandleDNSEvent(ctx context.Context, event domain.DNSEvent) error {
+	resolvedDeviceID, err := o.resolveDeviceIDForDNS(ctx, event)
+	if err != nil {
+		return err
+	}
+	event.DeviceID = resolvedDeviceID
 	event.ID = dnsEventID(event)
 	event.ObservedAt = normalizeTime(event.ObservedAt)
-	if err := o.ensureDeviceExists(ctx, event.DeviceID, event.ObservedAt); err != nil {
+	if err := o.ensureDeviceExists(ctx, event.DeviceID, event.ClientName, event.ClientIP, event.ObservedAt); err != nil {
 		return err
 	}
 	if err := o.store.StoreDNSEvent(ctx, event); err != nil {
@@ -139,14 +145,26 @@ func (o *Orchestrator) HandleDNSEvent(ctx context.Context, event domain.DNSEvent
 		return err
 	}
 
+	device, err := o.store.GetDevice(ctx, event.DeviceID)
+	if err != nil {
+		return err
+	}
+
+	profile, err := o.store.GetProfile(ctx, device.ProfileID)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
+
+	policy := domain.MergeDNSPolicies(profile.DNSPolicy, device.DNSPolicyOverride)
+
 	if o.expectedDNSResolver != "" && event.Resolver != "" && !strings.EqualFold(event.Resolver, o.expectedDNSResolver) {
 		_, err := o.raiseAlert(ctx, domain.Alert{
 			DeviceID:  event.DeviceID,
 			Type:      "dns_bypass",
 			Severity:  "high",
-			Title:     fmt.Sprintf("Potential DNS bypass detected for %s", event.DeviceID),
+			Title:     fmt.Sprintf("Potential DNS bypass detected for %s", device.HostnameOrID()),
 			Status:    "open",
-			Evidence:  map[string]any{"resolver": event.Resolver, "expected_resolver": o.expectedDNSResolver, "query": event.Query},
+			Evidence:  map[string]any{"resolver": event.Resolver, "expected_resolver": o.expectedDNSResolver, "query": event.Query, "client_ip": event.ClientIP},
 			CreatedAt: event.ObservedAt,
 		})
 		if err != nil {
@@ -154,17 +172,25 @@ func (o *Orchestrator) HandleDNSEvent(ctx context.Context, event domain.DNSEvent
 		}
 	}
 
-	if strings.EqualFold(event.Category, "adult") && !event.Blocked {
-		_, err := o.raiseAlert(ctx, domain.Alert{
-			DeviceID:  event.DeviceID,
-			Type:      "policy_violation",
-			Severity:  "high",
-			Title:     fmt.Sprintf("Adult domain observed for %s", event.DeviceID),
-			Status:    "open",
-			Evidence:  map[string]any{"domain": event.Domain, "category": event.Category},
-			CreatedAt: event.ObservedAt,
-		})
-		return err
+	violations := dnsPolicyAlerts(device, event, policy)
+	for _, alert := range violations {
+		if _, err := o.raiseAlert(ctx, alert); err != nil {
+			return err
+		}
+
+		observation := domain.Observation{
+			ID:          uuid.NewString(),
+			DeviceID:    event.DeviceID,
+			Source:      "dns-collector",
+			Kind:        alert.Type,
+			Severity:    alert.Severity,
+			Summary:     alert.Title,
+			EvidenceRef: alert.Evidence,
+			ObservedAt:  event.ObservedAt,
+		}
+		if err := o.store.StoreObservation(ctx, observation); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -173,7 +199,7 @@ func (o *Orchestrator) HandleDNSEvent(ctx context.Context, event domain.DNSEvent
 func (o *Orchestrator) HandleFlowEvent(ctx context.Context, event domain.FlowEvent) error {
 	event.ID = flowEventID(event)
 	event.ObservedAt = normalizeTime(event.ObservedAt)
-	if err := o.ensureDeviceExists(ctx, event.DeviceID, event.ObservedAt); err != nil {
+	if err := o.ensureDeviceExists(ctx, event.DeviceID, "", event.SrcIP, event.ObservedAt); err != nil {
 		return err
 	}
 	if err := o.store.StoreFlowEvent(ctx, event); err != nil {
@@ -198,12 +224,12 @@ func (o *Orchestrator) HandleFlowEvent(ctx context.Context, event domain.FlowEve
 		}
 
 		observation := domain.Observation{
-			ID:         uuid.NewString(),
-			DeviceID:   event.DeviceID,
-			Source:     "flow-collector",
-			Kind:       "suspicious_flow",
-			Severity:   "medium",
-			Summary:    fmt.Sprintf("Observed traffic to port %d", event.DstPort),
+			ID:       uuid.NewString(),
+			DeviceID: event.DeviceID,
+			Source:   "flow-collector",
+			Kind:     "suspicious_flow",
+			Severity: "medium",
+			Summary:  fmt.Sprintf("Observed traffic to port %d", event.DstPort),
 			EvidenceRef: map[string]any{
 				"dst_ip":   event.DstIP,
 				"dst_port": event.DstPort,
@@ -218,6 +244,10 @@ func (o *Orchestrator) HandleFlowEvent(ctx context.Context, event domain.FlowEve
 
 func (o *Orchestrator) UpdateDeviceProfile(ctx context.Context, id string, profileID string) (domain.Device, error) {
 	return o.store.UpdateDeviceProfile(ctx, id, profileID)
+}
+
+func (o *Orchestrator) UpdateDeviceDNSPolicy(ctx context.Context, id string, policy domain.DNSPolicy) (domain.Device, error) {
+	return o.store.UpdateDeviceDNSPolicy(ctx, id, domain.NormalizeDNSPolicy(policy))
 }
 
 func (o *Orchestrator) raiseAlert(ctx context.Context, alert domain.Alert) (domain.Alert, error) {
@@ -271,6 +301,8 @@ func dnsEventID(event domain.DNSEvent) string {
 	return stableID(
 		"dns",
 		event.DeviceID,
+		event.ClientIP,
+		event.ClientName,
 		event.Query,
 		event.Domain,
 		event.Category,
@@ -320,7 +352,7 @@ func normalizeTime(value time.Time) time.Time {
 	return value.UTC()
 }
 
-func (o *Orchestrator) ensureDeviceExists(ctx context.Context, deviceID string, observedAt time.Time) error {
+func (o *Orchestrator) ensureDeviceExists(ctx context.Context, deviceID string, clientName string, clientIP string, observedAt time.Time) error {
 	if deviceID == "" {
 		return nil
 	}
@@ -335,7 +367,8 @@ func (o *Orchestrator) ensureDeviceExists(ctx context.Context, deviceID string, 
 
 	_, _, err = o.store.UpsertDevice(ctx, domain.Device{
 		ID:         deviceID,
-		Hostname:   deviceID,
+		Hostname:   fallbackHostname(clientName, deviceID),
+		IPs:        placeholderIPs(clientIP),
 		DeviceType: "unknown",
 		ProfileID:  "guest",
 		Managed:    false,
@@ -346,6 +379,48 @@ func (o *Orchestrator) ensureDeviceExists(ctx context.Context, deviceID string, 
 	return err
 }
 
+func (o *Orchestrator) resolveDeviceIDForDNS(ctx context.Context, event domain.DNSEvent) (string, error) {
+	if event.DeviceID != "" {
+		if _, err := o.store.GetDevice(ctx, event.DeviceID); err == nil {
+			return event.DeviceID, nil
+		} else if !errors.Is(err, pgx.ErrNoRows) {
+			return "", err
+		}
+	}
+
+	devices, err := o.store.ListDevices(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	for _, device := range devices {
+		if event.ClientIP != "" {
+			for _, ip := range device.IPs {
+				if ip == event.ClientIP {
+					return device.ID, nil
+				}
+			}
+		}
+
+		if event.ClientName != "" && strings.EqualFold(event.ClientName, device.Hostname) {
+			return device.ID, nil
+		}
+
+		if event.ClientName != "" && strings.EqualFold(event.ClientName, device.DisplayName) {
+			return device.ID, nil
+		}
+	}
+
+	if event.ClientIP != "" {
+		return "device-ip-" + sanitizeForID(event.ClientIP), nil
+	}
+	if event.ClientName != "" {
+		return "device-name-" + sanitizeForID(event.ClientName), nil
+	}
+
+	return event.DeviceID, nil
+}
+
 func defaultProfileForDevice(deviceType string) string {
 	switch strings.ToLower(deviceType) {
 	case "camera", "iot":
@@ -353,6 +428,112 @@ func defaultProfileForDevice(deviceType string) string {
 	default:
 		return "guest"
 	}
+}
+
+func dnsPolicyAlerts(device domain.Device, event domain.DNSEvent, policy domain.DNSPolicy) []domain.Alert {
+	var alerts []domain.Alert
+
+	baseEvidence := map[string]any{
+		"domain":      event.Domain,
+		"query":       event.Query,
+		"category":    event.Category,
+		"blocked":     event.Blocked,
+		"resolver":    event.Resolver,
+		"client_ip":   event.ClientIP,
+		"client_name": event.ClientName,
+		"profile_id":  device.ProfileID,
+	}
+
+	if len(policy.AllowedDomains) > 0 && !domain.DomainMatches(policy.AllowedDomains, event.Domain) {
+		alerts = append(alerts, domain.Alert{
+			DeviceID:  device.ID,
+			Type:      "whitelist_violation",
+			Severity:  "high",
+			Title:     fmt.Sprintf("%s accessed domain outside whitelist: %s", device.HostnameOrID(), event.Domain),
+			Status:    "open",
+			Evidence:  withPolicyEvidence(baseEvidence, policy),
+			CreatedAt: event.ObservedAt,
+		})
+	}
+
+	if domain.DomainMatches(policy.BlockedDomains, event.Domain) {
+		title := fmt.Sprintf("%s attempted blocked domain: %s", device.HostnameOrID(), event.Domain)
+		if event.Blocked {
+			title = fmt.Sprintf("%s tried blocked domain and DNS blocked it: %s", device.HostnameOrID(), event.Domain)
+		}
+
+		alerts = append(alerts, domain.Alert{
+			DeviceID:  device.ID,
+			Type:      "blocked_domain_attempt",
+			Severity:  "high",
+			Title:     title,
+			Status:    "open",
+			Evidence:  withPolicyEvidence(baseEvidence, policy),
+			CreatedAt: event.ObservedAt,
+		})
+	}
+
+	if domain.ValueMatches(policy.BlockedCategories, event.Category) {
+		title := fmt.Sprintf("%s matched blocked category %s on %s", device.HostnameOrID(), event.Category, event.Domain)
+		if event.Blocked {
+			title = fmt.Sprintf("%s tried blocked category %s and DNS blocked it", device.HostnameOrID(), event.Category)
+		}
+		alerts = append(alerts, domain.Alert{
+			DeviceID:  device.ID,
+			Type:      "policy_violation",
+			Severity:  "high",
+			Title:     title,
+			Status:    "open",
+			Evidence:  withPolicyEvidence(baseEvidence, policy),
+			CreatedAt: event.ObservedAt,
+		})
+	}
+
+	if len(policy.BlockedCategories) == 0 && strings.EqualFold(event.Category, "adult") && !event.Blocked {
+		alerts = append(alerts, domain.Alert{
+			DeviceID:  device.ID,
+			Type:      "policy_violation",
+			Severity:  "high",
+			Title:     fmt.Sprintf("Adult domain observed for %s", device.HostnameOrID()),
+			Status:    "open",
+			Evidence:  withPolicyEvidence(baseEvidence, policy),
+			CreatedAt: event.ObservedAt,
+		})
+	}
+
+	return alerts
+}
+
+func withPolicyEvidence(base map[string]any, policy domain.DNSPolicy) map[string]any {
+	result := map[string]any{}
+	for key, value := range base {
+		result[key] = value
+	}
+	result["policy"] = policy
+	return result
+}
+
+func placeholderIPs(clientIP string) []string {
+	if clientIP == "" {
+		return nil
+	}
+	if net.ParseIP(clientIP) == nil {
+		return nil
+	}
+	return []string{clientIP}
+}
+
+func fallbackHostname(clientName string, deviceID string) string {
+	clientName = strings.TrimSpace(clientName)
+	if clientName != "" {
+		return clientName
+	}
+	return deviceID
+}
+
+func sanitizeForID(value string) string {
+	replacer := strings.NewReplacer(".", "-", ":", "-", " ", "-", "/", "-", "\\", "-")
+	return strings.ToLower(replacer.Replace(strings.TrimSpace(value)))
 }
 
 func normalizeDeviceType(deviceType string) string {

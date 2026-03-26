@@ -2,6 +2,28 @@ package domain
 
 import "time"
 
+type DNSPolicy struct {
+	SafeSearch        bool     `json:"safe_search"`
+	BlockedCategories []string `json:"blocked_categories,omitempty"`
+	BlockedDomains    []string `json:"blocked_domains,omitempty"`
+	AllowedDomains    []string `json:"allowed_domains,omitempty"`
+}
+
+type AlertPolicy struct {
+	NotifyOnBypass    bool `json:"notify_on_bypass"`
+	NotifyOnExposure  bool `json:"notify_on_exposure"`
+	NotifyOnNewDevice bool `json:"notify_on_new_device"`
+}
+
+type Profile struct {
+	ID          string         `json:"id"`
+	Name        string         `json:"name"`
+	Kind        string         `json:"kind"`
+	Schedule    map[string]any `json:"schedule"`
+	DNSPolicy   DNSPolicy      `json:"dns_policy"`
+	AlertPolicy AlertPolicy    `json:"alert_policy"`
+}
+
 type DeviceEvidence struct {
 	OpenPorts             []int    `json:"open_ports,omitempty"`
 	Services              []string `json:"services,omitempty"`
@@ -13,36 +35,39 @@ type DeviceEvidence struct {
 }
 
 type Device struct {
-	ID         string    `json:"id"`
-	MAC        string    `json:"mac"`
-	IPs        []string  `json:"ips"`
-	DisplayName string   `json:"display_name"`
-	Hostname   string    `json:"hostname"`
-	Vendor     string    `json:"vendor"`
-	DeviceType string    `json:"device_type"`
-	ProfileID  string    `json:"profile_id"`
-	Managed    bool      `json:"managed"`
-	RiskScore  int       `json:"risk_score"`
-	FirstSeen  time.Time `json:"first_seen_at"`
-	LastSeen   time.Time `json:"last_seen_at"`
+	ID                string    `json:"id"`
+	MAC               string    `json:"mac"`
+	IPs               []string  `json:"ips"`
+	DisplayName       string    `json:"display_name"`
+	Hostname          string    `json:"hostname"`
+	Vendor            string    `json:"vendor"`
+	DeviceType        string    `json:"device_type"`
+	ProfileID         string    `json:"profile_id"`
+	Managed           bool      `json:"managed"`
+	RiskScore         int       `json:"risk_score"`
+	DNSPolicyOverride DNSPolicy `json:"dns_policy_override"`
+	FirstSeen         time.Time `json:"first_seen_at"`
+	LastSeen          time.Time `json:"last_seen_at"`
 }
 
 type DeviceEvent struct {
-	ID         string    `json:"id"`
-	MAC        string    `json:"mac"`
-	IPs        []string  `json:"ips"`
-	Hostname   string    `json:"hostname"`
-	Vendor     string    `json:"vendor"`
-	DeviceType string    `json:"device_type"`
-	ProfileID  string    `json:"profile_id"`
-	Managed    bool      `json:"managed"`
+	ID         string         `json:"id"`
+	MAC        string         `json:"mac"`
+	IPs        []string       `json:"ips"`
+	Hostname   string         `json:"hostname"`
+	Vendor     string         `json:"vendor"`
+	DeviceType string         `json:"device_type"`
+	ProfileID  string         `json:"profile_id"`
+	Managed    bool           `json:"managed"`
 	Evidence   DeviceEvidence `json:"evidence"`
-	ObservedAt time.Time `json:"observed_at"`
+	ObservedAt time.Time      `json:"observed_at"`
 }
 
 type DNSEvent struct {
 	ID         string    `json:"id,omitempty"`
 	DeviceID   string    `json:"device_id"`
+	ClientIP   string    `json:"client_ip,omitempty"`
+	ClientName string    `json:"client_name,omitempty"`
 	Query      string    `json:"query"`
 	Domain     string    `json:"domain"`
 	Category   string    `json:"category"`
@@ -64,24 +89,24 @@ type FlowEvent struct {
 }
 
 type Observation struct {
-	ID          string                 `json:"id"`
-	DeviceID    string                 `json:"device_id"`
-	Source      string                 `json:"source"`
-	Kind        string                 `json:"kind"`
-	Severity    string                 `json:"severity"`
-	Summary     string                 `json:"summary"`
-	EvidenceRef map[string]any         `json:"evidence_ref"`
-	ObservedAt  time.Time              `json:"observed_at"`
+	ID          string         `json:"id"`
+	DeviceID    string         `json:"device_id"`
+	Source      string         `json:"source"`
+	Kind        string         `json:"kind"`
+	Severity    string         `json:"severity"`
+	Summary     string         `json:"summary"`
+	EvidenceRef map[string]any `json:"evidence_ref"`
+	ObservedAt  time.Time      `json:"observed_at"`
 }
 
 type DeviceInsight struct {
-	DeviceID     string                 `json:"device_id"`
-	Source       string                 `json:"source"`
-	Kind         string                 `json:"kind"`
-	Severity     string                 `json:"severity"`
-	Summary      string                 `json:"summary"`
-	Evidence     map[string]any         `json:"evidence"`
-	ObservedAt   time.Time              `json:"observed_at"`
+	DeviceID   string         `json:"device_id"`
+	Source     string         `json:"source"`
+	Kind       string         `json:"kind"`
+	Severity   string         `json:"severity"`
+	Summary    string         `json:"summary"`
+	Evidence   map[string]any `json:"evidence"`
+	ObservedAt time.Time      `json:"observed_at"`
 }
 
 type Alert struct {
@@ -102,4 +127,8 @@ type ProfileUpdateRequest struct {
 
 type DeviceNameUpdateRequest struct {
 	DisplayName string `json:"display_name"`
+}
+
+type DeviceDNSPolicyUpdateRequest struct {
+	DNSPolicy DNSPolicy `json:"dns_policy"`
 }

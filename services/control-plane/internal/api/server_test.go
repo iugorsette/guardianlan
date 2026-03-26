@@ -40,6 +40,28 @@ func TestListDevices(t *testing.T) {
 	}
 }
 
+func TestListProfiles(t *testing.T) {
+	store := repository.NewMemoryStore()
+	server := NewServer(":0", store, service.NewOrchestrator(store, messaging.NoopPublisher{}, "adguardhome"))
+	req := httptest.NewRequest(http.MethodGet, "/profiles", nil)
+	rec := httptest.NewRecorder()
+
+	server.httpServer.Handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+
+	var profiles []domain.Profile
+	if err := json.Unmarshal(rec.Body.Bytes(), &profiles); err != nil {
+		t.Fatalf("decode profiles: %v", err)
+	}
+
+	if len(profiles) == 0 {
+		t.Fatalf("expected seeded profiles")
+	}
+}
+
 func TestUpdateDeviceProfile(t *testing.T) {
 	store := repository.NewMemoryStore()
 	_, _, err := store.UpsertDevice(context.Background(), domain.Device{
@@ -163,5 +185,45 @@ func TestUpdateDeviceName(t *testing.T) {
 
 	if device.DisplayName != "Baba eletronica" {
 		t.Fatalf("expected display name updated, got %q", device.DisplayName)
+	}
+}
+
+func TestUpdateDeviceDNSPolicy(t *testing.T) {
+	store := repository.NewMemoryStore()
+	_, _, err := store.UpsertDevice(context.Background(), domain.Device{
+		ID:         "device-1",
+		Hostname:   "device-1",
+		ProfileID:  "guest",
+		DeviceType: "unknown",
+		FirstSeen:  time.Now().UTC(),
+		LastSeen:   time.Now().UTC(),
+	})
+	if err != nil {
+		t.Fatalf("seed device: %v", err)
+	}
+
+	server := NewServer(":0", store, service.NewOrchestrator(store, messaging.NoopPublisher{}, "adguardhome"))
+	body, _ := json.Marshal(domain.DeviceDNSPolicyUpdateRequest{
+		DNSPolicy: domain.DNSPolicy{
+			BlockedDomains: []string{"xvideos.com", "example.org"},
+			AllowedDomains: []string{"escola.local"},
+		},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/devices/device-1/dns-policy", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+
+	server.httpServer.Handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+
+	device, err := store.GetDevice(context.Background(), "device-1")
+	if err != nil {
+		t.Fatalf("get device: %v", err)
+	}
+
+	if len(device.DNSPolicyOverride.BlockedDomains) != 2 {
+		t.Fatalf("expected blocked domains saved, got %+v", device.DNSPolicyOverride)
 	}
 }

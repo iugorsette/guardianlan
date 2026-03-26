@@ -28,11 +28,13 @@ func NewServer(addr string, store repository.Store, orchestrator *service.Orches
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", server.handleHealthz)
+	mux.HandleFunc("GET /profiles", server.handleListProfiles)
 	mux.HandleFunc("GET /devices", server.handleListDevices)
 	mux.HandleFunc("GET /devices/{id}", server.handleGetDevice)
 	mux.HandleFunc("GET /devices/{id}/insights", server.handleListDeviceInsights)
 	mux.HandleFunc("POST /devices/{id}/name", server.handleUpdateDeviceName)
 	mux.HandleFunc("POST /devices/{id}/profile", server.handleUpdateDeviceProfile)
+	mux.HandleFunc("POST /devices/{id}/dns-policy", server.handleUpdateDeviceDNSPolicy)
 	mux.HandleFunc("GET /activity/dns", server.handleListDNSEvents)
 	mux.HandleFunc("GET /activity/flows", server.handleListFlowEvents)
 	mux.HandleFunc("GET /alerts", server.handleListAlerts)
@@ -60,6 +62,16 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 func (s *Server) handleHealthz(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (s *Server) handleListProfiles(w http.ResponseWriter, r *http.Request) {
+	profiles, err := s.store.ListProfiles(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, profiles)
 }
 
 func (s *Server) handleListDevices(w http.ResponseWriter, r *http.Request) {
@@ -119,6 +131,26 @@ func (s *Server) handleUpdateDeviceName(w http.ResponseWriter, r *http.Request) 
 	}
 
 	device, err := s.store.UpdateDeviceName(r.Context(), r.PathValue("id"), request.DisplayName)
+	if errors.Is(err, pgx.ErrNoRows) {
+		writeError(w, http.StatusNotFound, err)
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, device)
+}
+
+func (s *Server) handleUpdateDeviceDNSPolicy(w http.ResponseWriter, r *http.Request) {
+	var request domain.DeviceDNSPolicyUpdateRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	device, err := s.orchestrator.UpdateDeviceDNSPolicy(r.Context(), r.PathValue("id"), request.DNSPolicy)
 	if errors.Is(err, pgx.ErrNoRows) {
 		writeError(w, http.StatusNotFound, err)
 		return

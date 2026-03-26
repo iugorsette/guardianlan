@@ -15,6 +15,7 @@ import (
 type MemoryStore struct {
 	mu           sync.RWMutex
 	devices      map[string]domain.Device
+	profiles     map[string]domain.Profile
 	dnsEvents    []domain.DNSEvent
 	flowEvents   []domain.FlowEvent
 	observations []domain.Observation
@@ -23,8 +24,9 @@ type MemoryStore struct {
 
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
-		devices: map[string]domain.Device{},
-		alerts:  map[string]domain.Alert{},
+		devices:  map[string]domain.Device{},
+		profiles: defaultProfiles(),
+		alerts:   map[string]domain.Alert{},
 	}
 }
 
@@ -38,6 +40,9 @@ func (s *MemoryStore) UpsertDevice(_ context.Context, device domain.Device) (dom
 		device.FirstSeen = current.FirstSeen
 		if current.DisplayName != "" && device.DisplayName == "" {
 			device.DisplayName = current.DisplayName
+		}
+		if len(device.DNSPolicyOverride.BlockedCategories) == 0 && len(device.DNSPolicyOverride.BlockedDomains) == 0 && len(device.DNSPolicyOverride.AllowedDomains) == 0 && !device.DNSPolicyOverride.SafeSearch {
+			device.DNSPolicyOverride = current.DNSPolicyOverride
 		}
 	}
 	s.devices[device.ID] = device
@@ -73,6 +78,34 @@ func (s *MemoryStore) ListDevices(_ context.Context) ([]domain.Device, error) {
 	return devices, nil
 }
 
+func (s *MemoryStore) GetProfile(_ context.Context, id string) (domain.Profile, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	profile, ok := s.profiles[id]
+	if !ok {
+		return domain.Profile{}, pgx.ErrNoRows
+	}
+
+	return profile, nil
+}
+
+func (s *MemoryStore) ListProfiles(_ context.Context) ([]domain.Profile, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	profiles := make([]domain.Profile, 0, len(s.profiles))
+	for _, profile := range s.profiles {
+		profiles = append(profiles, profile)
+	}
+
+	sort.Slice(profiles, func(i, j int) bool {
+		return profiles[i].Name < profiles[j].Name
+	})
+
+	return profiles, nil
+}
+
 func (s *MemoryStore) UpdateDeviceProfile(_ context.Context, id string, profileID string) (domain.Device, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -103,6 +136,21 @@ func (s *MemoryStore) UpdateDeviceName(_ context.Context, id string, displayName
 	return device, nil
 }
 
+func (s *MemoryStore) UpdateDeviceDNSPolicy(_ context.Context, id string, policy domain.DNSPolicy) (domain.Device, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	device, ok := s.devices[id]
+	if !ok {
+		return domain.Device{}, pgx.ErrNoRows
+	}
+
+	device.DNSPolicyOverride = domain.NormalizeDNSPolicy(policy)
+	s.devices[id] = device
+
+	return device, nil
+}
+
 func (s *MemoryStore) StoreDNSEvent(_ context.Context, event domain.DNSEvent) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -112,6 +160,50 @@ func (s *MemoryStore) StoreDNSEvent(_ context.Context, event domain.DNSEvent) er
 		return s.dnsEvents[i].ObservedAt.After(s.dnsEvents[j].ObservedAt)
 	})
 	return nil
+}
+
+func defaultProfiles() map[string]domain.Profile {
+	return map[string]domain.Profile{
+		"adult": {
+			ID:          "adult",
+			Name:        "Adulto",
+			Kind:        "adult",
+			Schedule:    map[string]any{},
+			DNSPolicy:   domain.DNSPolicy{},
+			AlertPolicy: domain.AlertPolicy{},
+		},
+		"child": {
+			ID:       "child",
+			Name:     "Crianca",
+			Kind:     "child",
+			Schedule: map[string]any{"curfew": "21:00-07:00"},
+			DNSPolicy: domain.DNSPolicy{
+				SafeSearch:        true,
+				BlockedCategories: []string{"adult", "gambling"},
+			},
+			AlertPolicy: domain.AlertPolicy{NotifyOnBypass: true},
+		},
+		"iot": {
+			ID:       "iot",
+			Name:     "IoT",
+			Kind:     "iot",
+			Schedule: map[string]any{},
+			DNSPolicy: domain.DNSPolicy{
+				BlockedCategories: []string{"newly_registered_domains"},
+			},
+			AlertPolicy: domain.AlertPolicy{NotifyOnExposure: true},
+		},
+		"guest": {
+			ID:       "guest",
+			Name:     "Visitante",
+			Kind:     "guest",
+			Schedule: map[string]any{},
+			DNSPolicy: domain.DNSPolicy{
+				BlockedCategories: []string{"adult"},
+			},
+			AlertPolicy: domain.AlertPolicy{NotifyOnNewDevice: true},
+		},
+	}
 }
 
 func (s *MemoryStore) ListDNSEvents(_ context.Context, limit int) ([]domain.DNSEvent, error) {
