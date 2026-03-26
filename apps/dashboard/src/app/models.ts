@@ -2,6 +2,7 @@ export interface Device {
   id: string;
   mac: string;
   ips: string[];
+  display_name: string;
   hostname: string;
   vendor: string;
   device_type: string;

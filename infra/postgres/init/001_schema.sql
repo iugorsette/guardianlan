@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS devices (
   id TEXT PRIMARY KEY,
   mac TEXT NOT NULL DEFAULT '',
   ips JSONB NOT NULL DEFAULT '[]'::jsonb,
+  display_name TEXT NOT NULL DEFAULT '',
   hostname TEXT NOT NULL DEFAULT '',
   vendor TEXT NOT NULL DEFAULT '',
   device_type TEXT NOT NULL DEFAULT 'unknown',
@@ -76,4 +77,3 @@ VALUES
   ('iot', 'IoT', 'iot', '{}'::jsonb, '{"blocked_categories": ["newly_registered_domains"]}'::jsonb, '{"notify_on_exposure": true}'::jsonb),
   ('guest', 'Visitante', 'guest', '{}'::jsonb, '{"blocked_categories": ["adult"]}'::jsonb, '{"notify_on_new_device": true}'::jsonb)
 ON CONFLICT (id) DO NOTHING;
-

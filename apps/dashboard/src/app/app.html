@@ -76,7 +76,7 @@
           <section class="device-card">
             <div class="device-main">
               <div class="device-heading">
-                <h3>{{ device.hostname || device.id }}</h3>
+                <h3>{{ device.display_name || device.hostname || device.id }}</h3>
                 <span
                   class="pill"
                   [class.high]="device.risk_score >= 50"
@@ -99,6 +99,20 @@
             </div>
 
             <div class="device-actions">
+              <label>
+                Nome amigavel
+                <input
+                  type="text"
+                  [ngModel]="nameFor(device)"
+                  (ngModelChange)="setDeviceName(device.id, $event)"
+                  placeholder="Ex.: Baba eletronica"
+                />
+              </label>
+
+              <button class="ghost-button" type="button" (click)="saveDeviceName(device)">
+                Salvar nome
+              </button>
+
               <label>
                 Perfil
                 <select

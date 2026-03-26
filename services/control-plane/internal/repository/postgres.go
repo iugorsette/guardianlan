@@ -28,6 +28,13 @@ func NewPostgresStore(ctx context.Context, databaseURL string) (*PostgresStore, 
 		return nil, fmt.Errorf("ping postgres: %w", err)
 	}
 
+	if _, err := pool.Exec(ctx, `
+		ALTER TABLE devices
+		ADD COLUMN IF NOT EXISTS display_name TEXT NOT NULL DEFAULT ''
+	`); err != nil {
+		return nil, fmt.Errorf("migrate devices display_name: %w", err)
+	}
+
 	return &PostgresStore{pool: pool}, nil
 }
 
@@ -68,11 +75,11 @@ func (s *PostgresStore) UpsertDevice(ctx context.Context, device domain.Device) 
 	} else {
 		_, err = s.pool.Exec(ctx, `
 			INSERT INTO devices (
-				id, mac, ips, hostname, vendor, device_type, profile_id, managed, risk_score, first_seen_at, last_seen_at
+				id, mac, ips, display_name, hostname, vendor, device_type, profile_id, managed, risk_score, first_seen_at, last_seen_at
 			) VALUES (
-				$1, $2, $3::jsonb, $4, $5, $6, $7, $8, $9, $10, $11
+				$1, $2, $3::jsonb, $4, $5, $6, $7, $8, $9, $10, $11, $12
 			)
-		`, device.ID, device.MAC, string(ipsJSON), device.Hostname, device.Vendor, device.DeviceType, device.ProfileID, device.Managed, device.RiskScore, device.FirstSeen, device.LastSeen)
+		`, device.ID, device.MAC, string(ipsJSON), device.DisplayName, device.Hostname, device.Vendor, device.DeviceType, device.ProfileID, device.Managed, device.RiskScore, device.FirstSeen, device.LastSeen)
 		if err != nil {
 			return domain.Device{}, false, fmt.Errorf("insert device: %w", err)
 		}
@@ -84,7 +91,7 @@ func (s *PostgresStore) UpsertDevice(ctx context.Context, device domain.Device) 
 
 func (s *PostgresStore) GetDevice(ctx context.Context, id string) (domain.Device, error) {
 	row := s.pool.QueryRow(ctx, `
-		SELECT id, mac, ips, hostname, vendor, device_type, profile_id, managed, risk_score, first_seen_at, last_seen_at
+		SELECT id, mac, ips, display_name, hostname, vendor, device_type, profile_id, managed, risk_score, first_seen_at, last_seen_at
 		FROM devices
 		WHERE id = $1
 	`, id)
@@ -99,7 +106,7 @@ func (s *PostgresStore) GetDevice(ctx context.Context, id string) (domain.Device
 
 func (s *PostgresStore) ListDevices(ctx context.Context) ([]domain.Device, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, mac, ips, hostname, vendor, device_type, profile_id, managed, risk_score, first_seen_at, last_seen_at
+		SELECT id, mac, ips, display_name, hostname, vendor, device_type, profile_id, managed, risk_score, first_seen_at, last_seen_at
 		FROM devices
 		ORDER BY last_seen_at DESC
 	`)
@@ -124,6 +131,19 @@ func (s *PostgresStore) UpdateDeviceProfile(ctx context.Context, id string, prof
 	commandTag, err := s.pool.Exec(ctx, "UPDATE devices SET profile_id = $2, updated_at = NOW() WHERE id = $1", id, profileID)
 	if err != nil {
 		return domain.Device{}, fmt.Errorf("update profile: %w", err)
+	}
+
+	if commandTag.RowsAffected() == 0 {
+		return domain.Device{}, pgx.ErrNoRows
+	}
+
+	return s.GetDevice(ctx, id)
+}
+
+func (s *PostgresStore) UpdateDeviceName(ctx context.Context, id string, displayName string) (domain.Device, error) {
+	commandTag, err := s.pool.Exec(ctx, "UPDATE devices SET display_name = $2, updated_at = NOW() WHERE id = $1", id, displayName)
+	if err != nil {
+		return domain.Device{}, fmt.Errorf("update device name: %w", err)
 	}
 
 	if commandTag.RowsAffected() == 0 {
@@ -334,7 +354,7 @@ func scanDevice(scanner interface {
 }) (domain.Device, error) {
 	var device domain.Device
 	var ipsJSON []byte
-	err := scanner.Scan(&device.ID, &device.MAC, &ipsJSON, &device.Hostname, &device.Vendor, &device.DeviceType, &device.ProfileID, &device.Managed, &device.RiskScore, &device.FirstSeen, &device.LastSeen)
+	err := scanner.Scan(&device.ID, &device.MAC, &ipsJSON, &device.DisplayName, &device.Hostname, &device.Vendor, &device.DeviceType, &device.ProfileID, &device.Managed, &device.RiskScore, &device.FirstSeen, &device.LastSeen)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return domain.Device{}, err

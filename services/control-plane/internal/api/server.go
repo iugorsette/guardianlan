@@ -31,6 +31,7 @@ func NewServer(addr string, store repository.Store, orchestrator *service.Orches
 	mux.HandleFunc("GET /devices", server.handleListDevices)
 	mux.HandleFunc("GET /devices/{id}", server.handleGetDevice)
 	mux.HandleFunc("GET /devices/{id}/insights", server.handleListDeviceInsights)
+	mux.HandleFunc("POST /devices/{id}/name", server.handleUpdateDeviceName)
 	mux.HandleFunc("POST /devices/{id}/profile", server.handleUpdateDeviceProfile)
 	mux.HandleFunc("GET /activity/dns", server.handleListDNSEvents)
 	mux.HandleFunc("GET /activity/flows", server.handleListFlowEvents)
@@ -98,6 +99,26 @@ func (s *Server) handleUpdateDeviceProfile(w http.ResponseWriter, r *http.Reques
 	}
 
 	device, err := s.orchestrator.UpdateDeviceProfile(r.Context(), r.PathValue("id"), request.ProfileID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		writeError(w, http.StatusNotFound, err)
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, device)
+}
+
+func (s *Server) handleUpdateDeviceName(w http.ResponseWriter, r *http.Request) {
+	var request domain.DeviceNameUpdateRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	device, err := s.store.UpdateDeviceName(r.Context(), r.PathValue("id"), request.DisplayName)
 	if errors.Is(err, pgx.ErrNoRows) {
 		writeError(w, http.StatusNotFound, err)
 		return

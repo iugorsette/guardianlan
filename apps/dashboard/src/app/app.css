@@ -70,6 +70,7 @@
 
 .primary-button,
 .ghost-button,
+input,
 select {
   border-radius: 16px;
   border: 1px solid transparent;
@@ -340,6 +341,7 @@ select {
   color: var(--text-soft);
 }
 
+input,
 select {
   width: 100%;
   padding: 12px 14px;

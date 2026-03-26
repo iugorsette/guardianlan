@@ -71,6 +71,21 @@ export class DashboardApiService {
       });
   }
 
+  updateDeviceName(deviceId: string, displayName: string): void {
+    this.http
+      .post<Device>(`/api/devices/${deviceId}/name`, { display_name: displayName })
+      .subscribe({
+        next: (device) => {
+          this.devices.update((devices) =>
+            devices.map((current) => (current.id === device.id ? device : current))
+          );
+        },
+        error: (error: unknown) => {
+          this.error.set(this.messageFromError(error, 'Nao foi possivel atualizar o nome do dispositivo.'));
+        }
+      });
+  }
+
   acknowledgeAlert(alertId: string): void {
     this.http.post<Alert>(`/api/alerts/${alertId}/ack`, {}).subscribe({
       next: (alert) => {

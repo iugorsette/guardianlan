@@ -29,6 +29,7 @@ export class App {
   private readonly destroyRef = inject(DestroyRef);
   private readonly autoRefreshMs = inject(DASHBOARD_AUTO_REFRESH_MS);
   protected readonly profileDrafts = signal<Record<string, string>>({});
+  protected readonly nameDrafts = signal<Record<string, string>>({});
   protected readonly summary = this.api.summary;
   protected readonly devices = computed(() =>
     [...this.api.devices()].sort((left, right) => right.risk_score - left.risk_score)
@@ -61,8 +62,16 @@ export class App {
     return this.profileDrafts()[device.id] ?? device.profile_id;
   }
 
+  protected nameFor(device: Device): string {
+    return this.nameDrafts()[device.id] ?? device.display_name ?? '';
+  }
+
   protected setProfile(deviceId: string, profileId: string): void {
     this.profileDrafts.update((drafts) => ({ ...drafts, [deviceId]: profileId }));
+  }
+
+  protected setDeviceName(deviceId: string, displayName: string): void {
+    this.nameDrafts.update((drafts) => ({ ...drafts, [deviceId]: displayName }));
   }
 
   protected saveProfile(device: Device): void {
@@ -72,6 +81,15 @@ export class App {
     }
 
     this.api.updateProfile(device.id, profileId);
+  }
+
+  protected saveDeviceName(device: Device): void {
+    const displayName = this.nameFor(device).trim();
+    if (displayName === (device.display_name ?? '')) {
+      return;
+    }
+
+    this.api.updateDeviceName(device.id, displayName);
   }
 
   protected acknowledge(alert: Alert): void {

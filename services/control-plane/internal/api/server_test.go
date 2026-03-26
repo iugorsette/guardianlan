@@ -130,3 +130,38 @@ func TestListDeviceInsights(t *testing.T) {
 		t.Fatalf("expected insight kind device_discovered, got %s", insights[0].Kind)
 	}
 }
+
+func TestUpdateDeviceName(t *testing.T) {
+	store := repository.NewMemoryStore()
+	_, _, err := store.UpsertDevice(context.Background(), domain.Device{
+		ID:         "device-1",
+		Hostname:   "device-1",
+		ProfileID:  "guest",
+		DeviceType: "unknown",
+		FirstSeen:  time.Now().UTC(),
+		LastSeen:   time.Now().UTC(),
+	})
+	if err != nil {
+		t.Fatalf("seed device: %v", err)
+	}
+
+	server := NewServer(":0", store, service.NewOrchestrator(store, messaging.NoopPublisher{}, "adguardhome"))
+	body, _ := json.Marshal(domain.DeviceNameUpdateRequest{DisplayName: "Baba eletronica"})
+	req := httptest.NewRequest(http.MethodPost, "/devices/device-1/name", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+
+	server.httpServer.Handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+
+	device, err := store.GetDevice(context.Background(), "device-1")
+	if err != nil {
+		t.Fatalf("get device: %v", err)
+	}
+
+	if device.DisplayName != "Baba eletronica" {
+		t.Fatalf("expected display name updated, got %q", device.DisplayName)
+	}
+}

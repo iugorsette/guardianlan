@@ -16,6 +16,7 @@ type Device struct {
 	ID         string    `json:"id"`
 	MAC        string    `json:"mac"`
 	IPs        []string  `json:"ips"`
+	DisplayName string   `json:"display_name"`
 	Hostname   string    `json:"hostname"`
 	Vendor     string    `json:"vendor"`
 	DeviceType string    `json:"device_type"`
@@ -97,4 +98,8 @@ type Alert struct {
 
 type ProfileUpdateRequest struct {
 	ProfileID string `json:"profile_id"`
+}
+
+type DeviceNameUpdateRequest struct {
+	DisplayName string `json:"display_name"`
 }

@@ -36,6 +36,9 @@ func (s *MemoryStore) UpsertDevice(_ context.Context, device domain.Device) (dom
 	if exists {
 		current := s.devices[device.ID]
 		device.FirstSeen = current.FirstSeen
+		if current.DisplayName != "" && device.DisplayName == "" {
+			device.DisplayName = current.DisplayName
+		}
 	}
 	s.devices[device.ID] = device
 
@@ -80,6 +83,21 @@ func (s *MemoryStore) UpdateDeviceProfile(_ context.Context, id string, profileI
 	}
 
 	device.ProfileID = profileID
+	s.devices[id] = device
+
+	return device, nil
+}
+
+func (s *MemoryStore) UpdateDeviceName(_ context.Context, id string, displayName string) (domain.Device, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	device, ok := s.devices[id]
+	if !ok {
+		return domain.Device{}, pgx.ErrNoRows
+	}
+
+	device.DisplayName = displayName
 	s.devices[id] = device
 
 	return device, nil

@@ -14,6 +14,7 @@ type Store interface {
 	GetDevice(context.Context, string) (domain.Device, error)
 	ListDevices(context.Context) ([]domain.Device, error)
 	UpdateDeviceProfile(context.Context, string, string) (domain.Device, error)
+	UpdateDeviceName(context.Context, string, string) (domain.Device, error)
 	StoreDNSEvent(context.Context, domain.DNSEvent) error
 	ListDNSEvents(context.Context, int) ([]domain.DNSEvent, error)
 	StoreFlowEvent(context.Context, domain.FlowEvent) error
