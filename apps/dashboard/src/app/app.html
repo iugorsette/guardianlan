@@ -67,6 +67,7 @@
         <div>
           <p class="section-kicker">Inventario</p>
           <h2>Dispositivos da rede</h2>
+          <p class="section-note">Quem esta na sua LAN, como cada item foi classificado e qual pede atencao primeiro.</p>
         </div>
         <span class="pill neutral">{{ devices().length }} encontrados</span>
       </header>
@@ -76,7 +77,15 @@
           <section class="device-card">
             <div class="device-main">
               <div class="device-heading">
-                <h3>{{ device.display_name || device.hostname || device.id }}</h3>
+                <div class="device-heading-copy">
+                  @if (deviceHasCustomName(device)) {
+                    <p class="device-custom-label">Nome escolhido</p>
+                    <h3>{{ devicePrimaryName(device) }}</h3>
+                    <p class="device-identity">{{ deviceTechnicalName(device) }}</p>
+                  } @else {
+                    <h3>{{ devicePrimaryName(device) }}</h3>
+                  }
+                </div>
                 <span
                   class="pill"
                   [class.high]="device.risk_score >= 50"
@@ -99,81 +108,35 @@
               </div>
             </div>
 
-            <div class="device-actions">
-              <label>
-                Nome amigavel
-                <input
-                  type="text"
-                  [ngModel]="nameFor(device)"
-                  (ngModelChange)="setDeviceName(device.id, $event)"
-                  placeholder="Ex.: Baba eletronica"
-                />
-              </label>
-
-              <button class="ghost-button" type="button" (click)="saveDeviceName(device)">
-                Salvar nome
-              </button>
-
-              <label>
-                Perfil
-                <select
-                  [ngModel]="profileFor(device)"
-                  (ngModelChange)="setProfile(device.id, $event)"
-                >
-                  @for (profile of profileOptions(); track profile.id) {
-                    <option [value]="profile.id">{{ profile.name }}</option>
-                  }
-                </select>
-              </label>
-
-              <button class="ghost-button" type="button" (click)="saveProfile(device)">
-                Salvar perfil
-              </button>
-
-              <div class="policy-editor">
-                <label>
-                  Blacklist de dominios
-                  <textarea
-                    rows="3"
-                    [ngModel]="dnsPolicyFor(device).blockedDomains"
-                    (ngModelChange)="setDNSPolicyDraft(device.id, { blockedDomains: $event })"
-                    placeholder="xvideos.com&#10;pornhub.com"
-                  ></textarea>
-                </label>
-
-                <label>
-                  Whitelist de dominios
-                  <textarea
-                    rows="3"
-                    [ngModel]="dnsPolicyFor(device).allowedDomains"
-                    (ngModelChange)="setDNSPolicyDraft(device.id, { allowedDomains: $event })"
-                    placeholder="escola.local&#10;googleclassroom.com"
-                  ></textarea>
-                </label>
-
-                <label>
-                  Categorias bloqueadas
-                  <textarea
-                    rows="2"
-                    [ngModel]="dnsPolicyFor(device).blockedCategories"
-                    (ngModelChange)="setDNSPolicyDraft(device.id, { blockedCategories: $event })"
-                    placeholder="adult&#10;gambling"
-                  ></textarea>
-                </label>
-
-                <label class="checkbox-row">
-                  <input
-                    type="checkbox"
-                    [ngModel]="dnsPolicyFor(device).safeSearch"
-                    (ngModelChange)="setDNSPolicyDraft(device.id, { safeSearch: !!$event })"
-                  />
-                  <span>Forcar Safe Search neste dispositivo</span>
-                </label>
-
-                <button class="ghost-button" type="button" (click)="saveDNSPolicy(device)">
-                  Salvar politica DNS
-                </button>
+            <div class="device-side">
+              <div class="device-status">
+                <div class="device-status-item">
+                  <span class="status-label">Controle</span>
+                  <strong>{{ device.managed ? 'Gerenciado' : 'Nao gerenciado' }}</strong>
+                </div>
+                <div class="device-status-item">
+                  <span class="status-label">Perfil ativo</span>
+                  <strong>{{ profileLabel(device.profile_id) }}</strong>
+                </div>
+                <div class="device-status-item">
+                  <span class="status-label">Politica DNS</span>
+                  <strong>
+                    {{
+                      device.dns_policy_override.blocked_domains?.length ||
+                      device.dns_policy_override.allowed_domains?.length ||
+                      device.dns_policy_override.blocked_categories?.length ||
+                      device.dns_policy_override.safe_search
+                        ? 'Personalizada'
+                        : 'Padrao do perfil'
+                    }}
+                  </strong>
+                </div>
               </div>
+
+              <button class="settings-button" type="button" (click)="openDeviceSettings(device)" aria-label="Abrir configuracoes do dispositivo">
+                <span aria-hidden="true">&#9881;</span>
+                Configurar
+              </button>
             </div>
           </section>
         } @empty {
@@ -190,17 +153,34 @@
         <div>
           <p class="section-kicker">Seguranca</p>
           <h2>Alertas recentes</h2>
+          <p class="section-note">Eventos que pedem acao agora: politica violada, bypass DNS, dispositivo novo ou fluxo sensivel.</p>
         </div>
         <span class="pill neutral">{{ alerts().length }} no historico</span>
       </header>
 
+      <div class="security-summary">
+        <div class="security-stat">
+          <span>Abertos</span>
+          <strong>{{ summary().openAlerts }}</strong>
+        </div>
+        <div class="security-stat">
+          <span>Politica</span>
+          <strong>{{ summary().policyAlerts }}</strong>
+        </div>
+        <div class="security-stat">
+          <span>Bypass DNS</span>
+          <strong>{{ summary().bypassAlerts }}</strong>
+        </div>
+      </div>
+
       <div class="alert-list">
         @for (alert of alerts(); track trackById($index, alert)) {
-          <section class="alert-card">
+          <section class="alert-card" [attr.data-severity]="alertSeverityClass(alert)">
             <div class="alert-copy">
               <div class="alert-heading">
                 <span
                   class="pill severity"
+                  [class.critical]="alert.severity === 'critical'"
                   [class.high]="alert.severity === 'high'"
                   [class.medium]="alert.severity === 'medium'"
                 >
@@ -210,6 +190,7 @@
               </div>
               <h3>{{ alert.title }}</h3>
               <p>{{ alert.device_id }} · {{ alert.created_at | date: 'dd/MM HH:mm:ss' }}</p>
+              <p class="alert-evidence">{{ alertEvidenceSummary(alert) }}</p>
             </div>
 
             <button
@@ -386,4 +367,86 @@
       </div>
     </article>
   </section>
+
+  @if (selectedDevice(); as device) {
+    <div class="modal-backdrop" (click)="closeDeviceSettings()"></div>
+    <section class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="device-settings-title">
+      <header class="modal-header">
+        <div>
+          <p class="section-kicker">Configuracoes</p>
+          <h2 id="device-settings-title">{{ devicePrimaryName(device) }}</h2>
+          <p class="modal-subtitle">{{ deviceTechnicalName(device) }} · {{ device.ips.join(', ') || 'Sem IP' }}</p>
+        </div>
+        <button class="ghost-button" type="button" (click)="closeDeviceSettings()">Fechar</button>
+      </header>
+
+      <div class="modal-grid">
+        <label>
+          Nome amigavel
+          <input
+            type="text"
+            [ngModel]="nameFor(device)"
+            (ngModelChange)="setDeviceName(device.id, $event)"
+            placeholder="Ex.: Baba eletronica"
+          />
+        </label>
+
+        <label>
+          Perfil
+          <select
+            [ngModel]="profileFor(device)"
+            (ngModelChange)="setProfile(device.id, $event)"
+          >
+            @for (profile of profileOptions(); track profile.id) {
+              <option [value]="profile.id">{{ profile.name }}</option>
+            }
+          </select>
+        </label>
+
+        <label>
+          Blacklist de dominios
+          <textarea
+            rows="4"
+            [ngModel]="dnsPolicyFor(device).blockedDomains"
+            (ngModelChange)="setDNSPolicyDraft(device.id, { blockedDomains: $event })"
+            placeholder="xvideos.com&#10;pornhub.com"
+          ></textarea>
+        </label>
+
+        <label>
+          Whitelist de dominios
+          <textarea
+            rows="4"
+            [ngModel]="dnsPolicyFor(device).allowedDomains"
+            (ngModelChange)="setDNSPolicyDraft(device.id, { allowedDomains: $event })"
+            placeholder="escola.local&#10;googleclassroom.com"
+          ></textarea>
+        </label>
+
+        <label class="modal-wide">
+          Categorias bloqueadas
+          <textarea
+            rows="3"
+            [ngModel]="dnsPolicyFor(device).blockedCategories"
+            (ngModelChange)="setDNSPolicyDraft(device.id, { blockedCategories: $event })"
+            placeholder="adult&#10;gambling"
+          ></textarea>
+        </label>
+
+        <label class="checkbox-row modal-wide">
+          <input
+            type="checkbox"
+            [ngModel]="dnsPolicyFor(device).safeSearch"
+            (ngModelChange)="setDNSPolicyDraft(device.id, { safeSearch: !!$event })"
+          />
+          <span>Forcar Safe Search neste dispositivo</span>
+        </label>
+      </div>
+
+      <footer class="modal-footer">
+        <button class="ghost-button" type="button" (click)="closeDeviceSettings()">Cancelar</button>
+        <button class="primary-button" type="button" (click)="saveDeviceSettings(device)">Salvar configuracoes</button>
+      </footer>
+    </section>
+  }
 </main>

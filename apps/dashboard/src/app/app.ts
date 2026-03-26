@@ -31,6 +31,7 @@ export class App {
   protected readonly profileDrafts = signal<Record<string, string>>({});
   protected readonly nameDrafts = signal<Record<string, string>>({});
   protected readonly dnsPolicyDrafts = signal<Record<string, DNSPolicyFormValue>>({});
+  protected readonly selectedDeviceId = signal<string | null>(null);
   protected readonly summary = this.api.summary;
   protected readonly profiles = this.api.profiles;
   protected readonly devices = computed(() =>
@@ -47,6 +48,14 @@ export class App {
   protected readonly cameraDevices = computed(() =>
     this.devices().filter((device) => device.device_type === 'camera')
   );
+  protected readonly selectedDevice = computed(() => {
+    const selectedDeviceId = this.selectedDeviceId();
+    if (!selectedDeviceId) {
+      return null;
+    }
+
+    return this.devices().find((device) => device.id === selectedDeviceId) ?? null;
+  });
 
   constructor() {
     if (this.autoRefreshMs < 0) {
@@ -165,11 +174,76 @@ export class App {
         ];
   }
 
+  protected openDeviceSettings(device: Device): void {
+    this.selectedDeviceId.set(device.id);
+  }
+
+  protected closeDeviceSettings(): void {
+    this.selectedDeviceId.set(null);
+  }
+
+  protected saveDeviceSettings(device: Device): void {
+    this.saveDeviceName(device);
+    this.saveProfile(device);
+    this.saveDNSPolicy(device);
+    this.closeDeviceSettings();
+  }
+
+  protected devicePrimaryName(device: Device): string {
+    return device.display_name || device.hostname || device.id;
+  }
+
+  protected deviceTechnicalName(device: Device): string {
+    return device.hostname || device.id;
+  }
+
+  protected deviceHasCustomName(device: Device): boolean {
+    return !!device.display_name;
+  }
+
+  protected alertEvidenceSummary(alert: Alert): string {
+    const domain = this.asString(alert.evidence['domain']);
+    const category = this.asString(alert.evidence['category']);
+    const resolver = this.asString(alert.evidence['resolver']);
+    const clientIp = this.asString(alert.evidence['client_ip']);
+    const dstIp = this.asString(alert.evidence['dst_ip']);
+    const dstPort = this.asString(alert.evidence['dst_port']);
+
+    if (domain) {
+      return [domain, category, resolver].filter(Boolean).join(' · ');
+    }
+    if (dstIp || dstPort) {
+      return [dstIp, dstPort ? `porta ${dstPort}` : '', this.asString(alert.evidence['protocol'])].filter(Boolean).join(' · ');
+    }
+    if (clientIp) {
+      return clientIp;
+    }
+
+    return 'Sem evidencia resumida';
+  }
+
+  protected alertSeverityClass(alert: Alert): string {
+    switch (alert.severity) {
+      case 'critical':
+        return 'critical';
+      case 'high':
+        return 'high';
+      case 'medium':
+        return 'medium';
+      default:
+        return 'low';
+    }
+  }
+
   private splitPolicyLines(value: string): string[] {
     return value
       .split(/[\n,]/)
       .map((item) => item.trim().toLowerCase())
       .filter((item, index, items) => item.length > 0 && items.indexOf(item) === index);
+  }
+
+  private asString(value: unknown): string {
+    return typeof value === 'string' || typeof value === 'number' ? String(value) : '';
   }
 }
 
