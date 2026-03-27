@@ -527,7 +527,7 @@ func dnsPolicyAlerts(device domain.Device, event domain.DNSEvent, policy domain.
 			DeviceID:  device.ID,
 			Type:      "whitelist_violation",
 			Severity:  "high",
-			Title:     fmt.Sprintf("%s accessed domain outside whitelist: %s", device.HostnameOrID(), event.Domain),
+			Title:     fmt.Sprintf("%s accessed a domain outside the expected list: %s", device.HostnameOrID(), event.Domain),
 			Status:    "open",
 			Evidence:  withPolicyEvidence(baseEvidence, policy),
 			CreatedAt: event.ObservedAt,
@@ -535,10 +535,7 @@ func dnsPolicyAlerts(device domain.Device, event domain.DNSEvent, policy domain.
 	}
 
 	if domain.DomainMatches(policy.BlockedDomains, event.Domain) {
-		title := fmt.Sprintf("%s attempted blocked domain: %s", device.HostnameOrID(), event.Domain)
-		if event.Blocked {
-			title = fmt.Sprintf("%s tried blocked domain and DNS blocked it: %s", device.HostnameOrID(), event.Domain)
-		}
+		title := fmt.Sprintf("%s accessed a monitored domain: %s", device.HostnameOrID(), event.Domain)
 
 		alerts = append(alerts, domain.Alert{
 			DeviceID:  device.ID,
@@ -552,10 +549,7 @@ func dnsPolicyAlerts(device domain.Device, event domain.DNSEvent, policy domain.
 	}
 
 	if domain.ValueMatches(policy.BlockedCategories, event.Category) {
-		title := fmt.Sprintf("%s matched blocked category %s on %s", device.HostnameOrID(), event.Category, event.Domain)
-		if event.Blocked {
-			title = fmt.Sprintf("%s tried blocked category %s and DNS blocked it", device.HostnameOrID(), event.Category)
-		}
+		title := fmt.Sprintf("%s accessed sensitive category %s on %s", device.HostnameOrID(), event.Category, event.Domain)
 		alerts = append(alerts, domain.Alert{
 			DeviceID:  device.ID,
 			Type:      "policy_violation",

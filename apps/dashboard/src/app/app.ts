@@ -43,6 +43,9 @@ export class App {
         new Date(right.created_at).getTime() - new Date(left.created_at).getTime()
     )
   );
+  protected readonly groupedAlerts = computed(() =>
+    this.buildAlertGroups(this.alerts(), this.devices())
+  );
   protected readonly dnsEvents = computed(() => this.api.dnsEvents().slice(0, 8));
   protected readonly flowEvents = computed(() => this.api.flowEvents().slice(0, 8));
   protected readonly cameraDevices = computed(() =>
@@ -145,6 +148,13 @@ export class App {
     this.api.acknowledgeAlert(alert.id);
   }
 
+  protected acknowledgeGroup(group: AlertGroup): void {
+    const openIds = group.alerts
+      .filter((alert) => alert.status === 'open')
+      .map((alert) => alert.id);
+    this.api.acknowledgeAlerts(openIds);
+  }
+
   protected latestInsight(deviceId: string): DeviceInsight | null {
     return this.api.deviceInsights()[deviceId]?.[0] ?? null;
   }
@@ -222,6 +232,60 @@ export class App {
     return 'Sem evidencia resumida';
   }
 
+  protected alertGroupTitle(group: AlertGroup): string {
+    const deviceName = this.deviceNameById(group.deviceId);
+    if (group.domain) {
+      if (group.type === 'whitelist_violation') {
+        return `${deviceName} acessou um dominio fora do esperado`;
+      }
+      if (group.category && group.category !== 'unknown') {
+        return `${deviceName} acessou um dominio sensivel`;
+      }
+      return `${deviceName} acessou um dominio monitorado`;
+    }
+    if (group.type === 'dns_bypass') {
+      return `Resolucao DNS fora do esperado em ${deviceName}`;
+    }
+    if (group.type === 'unknown_device') {
+      return `Novo dispositivo observado na rede`;
+    }
+    if (group.type === 'suspicious_flow') {
+      return `Comunicacao sensivel observada em ${deviceName}`;
+    }
+
+    return group.latest.title;
+  }
+
+  protected alertGroupSummary(group: AlertGroup): string {
+    const parts: string[] = [];
+    if (group.domain) {
+      parts.push(group.domain);
+    }
+    if (group.category && group.category !== 'unknown' && group.category !== 'filtered') {
+      parts.push(`categoria ${group.category}`);
+    }
+    if (group.clientIp) {
+      parts.push(group.clientIp);
+    }
+    if (!group.domain && group.resolver) {
+      parts.push(`resolvedor ${group.resolver}`);
+    }
+    if (group.dstIp) {
+      parts.push(group.dstIp);
+    }
+    if (group.dstPort) {
+      parts.push(`porta ${group.dstPort}`);
+    }
+
+    return parts.join(' · ') || this.alertEvidenceSummary(group.latest);
+  }
+
+  protected alertGroupMeta(group: AlertGroup): string {
+    const frequency = group.count === 1 ? '1 vez' : `${group.count} vezes`;
+    const status = group.openCount > 0 ? 'aberto' : 'reconhecido';
+    return `${this.deviceNameById(group.deviceId)} · ${frequency} · ${status}`;
+  }
+
   protected alertSeverityClass(alert: Alert): string {
     switch (alert.severity) {
       case 'critical':
@@ -232,6 +296,124 @@ export class App {
         return 'medium';
       default:
         return 'low';
+    }
+  }
+
+  protected deviceNameById(deviceId: string): string {
+    const device = this.devices().find((item) => item.id === deviceId);
+    if (!device) {
+      return deviceId;
+    }
+
+    return this.devicePrimaryName(device);
+  }
+
+  private buildAlertGroups(alerts: Alert[], devices: Device[]): AlertGroup[] {
+    const deviceById = new Map(devices.map((device) => [device.id, device] as const));
+    const groups = new Map<string, AlertGroup>();
+
+    for (const alert of alerts) {
+      const domain = this.asString(alert.evidence['domain']).toLowerCase();
+      const category = this.asString(alert.evidence['category']).toLowerCase();
+      const resolver = this.asString(alert.evidence['resolver']);
+      const clientIp = this.asString(alert.evidence['client_ip']);
+      const dstIp = this.asString(alert.evidence['dst_ip']);
+      const dstPort = this.asString(alert.evidence['dst_port']);
+      const key = this.alertGroupKey(alert, domain, category, resolver, dstIp, dstPort);
+      const existing = groups.get(key);
+
+      if (!existing) {
+        groups.set(key, {
+          id: key,
+          type: alert.type,
+          deviceId: alert.device_id,
+          latest: alert,
+          alerts: [alert],
+          count: 1,
+          openCount: alert.status === 'open' ? 1 : 0,
+          severity: alert.severity,
+          domain,
+          category,
+          resolver,
+          clientIp,
+          dstIp,
+          dstPort,
+          deviceName: deviceById.get(alert.device_id)?.display_name
+            || deviceById.get(alert.device_id)?.hostname
+            || alert.device_id
+        });
+        continue;
+      }
+
+      existing.alerts.push(alert);
+      existing.count += 1;
+      existing.openCount += alert.status === 'open' ? 1 : 0;
+      if (this.severityWeight(alert.severity) > this.severityWeight(existing.severity)) {
+        existing.severity = alert.severity;
+      }
+      if (new Date(alert.created_at).getTime() > new Date(existing.latest.created_at).getTime()) {
+        existing.latest = alert;
+      }
+      if (!existing.domain && domain) {
+        existing.domain = domain;
+      }
+      if (!existing.category && category) {
+        existing.category = category;
+      }
+      if (!existing.resolver && resolver) {
+        existing.resolver = resolver;
+      }
+      if (!existing.clientIp && clientIp) {
+        existing.clientIp = clientIp;
+      }
+      if (!existing.dstIp && dstIp) {
+        existing.dstIp = dstIp;
+      }
+      if (!existing.dstPort && dstPort) {
+        existing.dstPort = dstPort;
+      }
+    }
+
+    return [...groups.values()].sort(
+      (left, right) =>
+        new Date(right.latest.created_at).getTime() - new Date(left.latest.created_at).getTime()
+    );
+  }
+
+  private alertGroupKey(
+    alert: Alert,
+    domain: string,
+    category: string,
+    resolver: string,
+    dstIp: string,
+    dstPort: string
+  ): string {
+    if (domain) {
+      return `domain:${alert.device_id}:${domain}`;
+    }
+    if (alert.type === 'dns_bypass') {
+      return `dns:${alert.device_id}:${resolver}`;
+    }
+    if (dstIp || dstPort) {
+      return `flow:${alert.device_id}:${dstIp}:${dstPort}`;
+    }
+    if (category) {
+      return `category:${alert.device_id}:${category}`;
+    }
+
+    return `alert:${alert.device_id}:${alert.type}:${alert.title}`;
+  }
+
+  private severityWeight(severity: string): number {
+    switch (severity) {
+      case 'critical':
+        return 4;
+      case 'high':
+        return 3;
+      case 'medium':
+        return 2;
+      default:
+        return 1;
     }
   }
 
@@ -252,4 +434,22 @@ interface DNSPolicyFormValue {
   allowedDomains: string;
   blockedCategories: string;
   safeSearch: boolean;
+}
+
+interface AlertGroup {
+  id: string;
+  type: string;
+  deviceId: string;
+  deviceName: string;
+  latest: Alert;
+  alerts: Alert[];
+  count: number;
+  openCount: number;
+  severity: string;
+  domain: string;
+  category: string;
+  resolver: string;
+  clientIp: string;
+  dstIp: string;
+  dstPort: string;
 }

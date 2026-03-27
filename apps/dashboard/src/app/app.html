@@ -125,9 +125,9 @@
         <div>
           <p class="section-kicker">Seguranca</p>
           <h2>Alertas recentes</h2>
-          <p class="section-note">Eventos que pedem acao agora: politica violada, bypass DNS, dispositivo novo ou fluxo sensivel.</p>
+          <p class="section-note">Resumo do que a rede observou: dominios sensiveis, dispositivos novos, bypass DNS e comunicacoes que merecem atencao.</p>
         </div>
-        <span class="pill neutral">{{ alerts().length }} no historico</span>
+        <span class="pill neutral">{{ groupedAlerts().length }} grupos · {{ alerts().length }} eventos</span>
       </header>
 
       <div class="security-summary">
@@ -146,38 +146,41 @@
       </div>
 
       <div class="alert-list">
-        @for (alert of alerts(); track trackById($index, alert)) {
-          <section class="alert-card" [attr.data-severity]="alertSeverityClass(alert)">
+        @for (group of groupedAlerts(); track group.id) {
+          <section class="alert-card" [attr.data-severity]="alertSeverityClass(group.latest)">
             <div class="alert-copy">
               <div class="alert-heading">
                 <span
                   class="pill severity"
-                  [class.critical]="alert.severity === 'critical'"
-                  [class.high]="alert.severity === 'high'"
-                  [class.medium]="alert.severity === 'medium'"
+                  [class.critical]="group.severity === 'critical'"
+                  [class.high]="group.severity === 'high'"
+                  [class.medium]="group.severity === 'medium'"
                 >
-                  {{ alert.severity }}
+                  {{ group.severity }}
                 </span>
-                <span class="pill neutral">{{ alert.status }}</span>
+                <span class="pill neutral">{{ group.openCount > 0 ? 'aberto' : 'reconhecido' }}</span>
+                @if (group.count > 1) {
+                  <span class="pill neutral">{{ group.count }} vezes</span>
+                }
               </div>
-              <h3>{{ alert.title }}</h3>
-              <p>{{ alert.device_id }} · {{ alert.created_at | date: 'dd/MM HH:mm:ss' }}</p>
-              <p class="alert-evidence">{{ alertEvidenceSummary(alert) }}</p>
+              <h3>{{ alertGroupTitle(group) }}</h3>
+              <p>{{ alertGroupMeta(group) }} · ultimo evento {{ group.latest.created_at | date: 'dd/MM HH:mm:ss' }}</p>
+              <p class="alert-evidence">{{ alertGroupSummary(group) }}</p>
             </div>
 
             <button
               class="ghost-button"
               type="button"
-              [disabled]="alert.status !== 'open'"
-              (click)="acknowledge(alert)"
+              [disabled]="group.openCount === 0"
+              (click)="acknowledgeGroup(group)"
             >
-              {{ alert.status === 'open' ? 'Reconhecer' : 'Reconhecido' }}
+              {{ group.openCount > 0 ? (group.count > 1 ? 'Reconhecer grupo' : 'Reconhecer') : 'Reconhecido' }}
             </button>
           </section>
         } @empty {
           <div class="empty-state">
             <h3>Sem alertas</h3>
-            <p>Quando houver bypass DNS, exposicao suspeita ou novos dispositivos, aparece aqui.</p>
+            <p>Quando houver dominios sensiveis, bypass DNS, exposicao suspeita ou novos dispositivos, aparece aqui.</p>
           </div>
         }
       </div>

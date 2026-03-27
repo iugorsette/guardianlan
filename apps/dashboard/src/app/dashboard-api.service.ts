@@ -116,6 +116,29 @@ export class DashboardApiService {
     });
   }
 
+  acknowledgeAlerts(alertIds: string[]): void {
+    const uniqueIds = [...new Set(alertIds.filter((alertId) => alertId.length > 0))];
+    if (uniqueIds.length === 0) {
+      return;
+    }
+
+    forkJoin(
+      uniqueIds.map((alertId) => this.http.post<Alert>(`/api/alerts/${alertId}/ack`, {}))
+    ).subscribe({
+      next: (acknowledgedAlerts) => {
+        const acknowledgedById = new Map(
+          acknowledgedAlerts.map((alert) => [alert.id, alert] as const)
+        );
+        this.alerts.update((alerts) =>
+          alerts.map((current) => acknowledgedById.get(current.id) ?? current)
+        );
+      },
+      error: (error: unknown) => {
+        this.error.set(this.messageFromError(error, 'Nao foi possivel reconhecer os alertas.'));
+      }
+    });
+  }
+
   private applySnapshot(snapshot: DashboardSnapshot): void {
     const devices = snapshot.devices ?? [];
     this.profiles.set(snapshot.profiles ?? []);
