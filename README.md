@@ -2,6 +2,8 @@
 
 <img width="1368" height="1076" alt="image" src="https://github.com/user-attachments/assets/cd210f08-b978-4519-bed7-c8d0fdbd21ff" />
 
+<img width="1368" height="1076" alt="image" src="https://github.com/user-attachments/assets/9c9dff50-fc4a-405a-bdca-f05ff873ad6f" />
+<img width="1368" height="1076" alt="image" src="https://github.com/user-attachments/assets/f20f272a-0f48-49ea-90cc-8b2698c9e0d5" />
 
 Plataforma `local-first` para gerenciamento de rede domestica, controle parental e observabilidade de seguranca rodando em uma maquina da casa.
 
