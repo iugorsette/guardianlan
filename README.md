@@ -1,5 +1,8 @@
 # Guardian LAN
 
+<img width="1368" height="1076" alt="image" src="https://github.com/user-attachments/assets/cd210f08-b978-4519-bed7-c8d0fdbd21ff" />
+
+
 Plataforma `local-first` para gerenciamento de rede domestica, controle parental e observabilidade de seguranca rodando em uma maquina da casa.
 
 ## Briefing do produto
