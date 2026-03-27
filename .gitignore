@@ -1,4 +1,5 @@
 .env
+.env.local
 .DS_Store
 tmp/
 target/
@@ -7,3 +8,7 @@ node_modules/
 coverage.out
 *.log
 *.db
+deploy/appliance/.env.gateway
+deploy/appliance/.env.host-dev
+deploy/appliance/nftables/guardian-lan.nft
+deploy/appliance/systemd-networkd/rendered/

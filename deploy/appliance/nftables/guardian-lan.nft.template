@@ -1,0 +1,52 @@
+#!/usr/sbin/nft -f
+
+flush table inet guardian_lan
+flush table ip guardian_lan_nat
+
+table inet guardian_lan {
+  chain input {
+    type filter hook input priority 0;
+    policy drop;
+
+    ct state established,related accept
+    iifname "lo" accept
+
+    iifname "$LAN_IF" udp dport { 53, 67, 68 } accept
+    iifname "$LAN_IF" tcp dport { 53, 80, 443, 8080 } accept
+
+    $SSH_RULE
+
+    iifname "$WAN_IF" ct state established,related accept
+  }
+
+  chain forward {
+    type filter hook forward priority 0;
+    policy drop;
+
+    ct state established,related accept
+
+    iifname "$LAN_IF" oifname "$WAN_IF" accept
+    iifname "$LAN_IF" oifname "$LAN_IF" accept
+  }
+
+  chain output {
+    type filter hook output priority 0;
+    policy accept;
+  }
+}
+
+table ip guardian_lan_nat {
+  chain prerouting {
+    type nat hook prerouting priority dstnat;
+
+    $DNS_REDIRECT_UDP
+    $DNS_REDIRECT_TCP
+    $DOT_BLOCK
+  }
+
+  chain postrouting {
+    type nat hook postrouting priority srcnat;
+
+    oifname "$WAN_IF" ip saddr $LAN_CIDR masquerade
+  }
+}

@@ -21,13 +21,14 @@ Resumo da proposta:
 - com baixo custo e sem exigir cloud como requisito central
 
 O briefing detalhado esta em [docs/product-brief.md](/home/sette/github/parental-local/docs/product-brief.md).
+O modo principal do produto hoje esta em [docs/observer-mode.md](/home/sette/github/parental-local/docs/observer-mode.md).
 
 ## O que esta base já entrega
 
 - `Collectors` em Rust para descoberta, DNS e fluxo publicando eventos no `NATS`
 - `Control plane` em Go para inventário, correlação, alertas e API local
 - `Dashboard` em Angular para operar dispositivos, alertas e telemetria local
-- politicas DNS por dispositivo com `blacklist`, `whitelist`, categorias bloqueadas e `Safe Search`
+- watchlists de dominios e categorias por dispositivo para telemetria e alertas
 - `PostgreSQL` para estado durável
 - `Docker Compose` para subir tudo de forma previsível
 - documentação inicial da arquitetura, segurança, contratos e operação
@@ -37,7 +38,19 @@ O briefing detalhado esta em [docs/product-brief.md](/home/sette/github/parental
 - Sem trocar o roteador, a plataforma não enxerga todo o tráfego da rede.
 - `HTTPS` impede inspeção de conteúdo; esta base trabalha com metadados, DNS, fluxo e inventário.
 - Os collectors da v1 estão preparados para ingestão por arquivo/export e publicação de eventos. Eles são o ponto de integração para fontes reais da rede, como APIs do roteador, exports do AdGuard Home e ntopng, ou futuras capturas com mais privilégios.
-- A v1 prioriza descoberta, inventario, classificacao, alertas e sinais de risco; nao existe promessa de controle total sem mudar a topologia da rede.
+- A v1 prioriza descoberta, inventario, classificacao, alertas e sinais de risco.
+- Em `Observer Mode`, o produto `ve, explica, alerta e ajuda pais`; ele nao promete controle automatico da rede inteira.
+
+## Direcao do produto hoje
+
+O produto fica mais honesto e mais util se for apresentado primeiro como `Observer`:
+
+- descobre e classifica a rede da casa
+- explica risco em linguagem simples
+- alerta pais e cuidadores
+- usa fontes opcionais de DNS, fluxo e endpoint quando existirem
+
+Quando no futuro houver necessidade de enforcement de rede inteira, o repositório tambem guarda pesquisas de `appliance mode` e `gateway mode`, mas isso fica explicitamente fora da promessa principal de hoje.
 
 ## Estrutura
 
@@ -48,6 +61,31 @@ O briefing detalhado esta em [docs/product-brief.md](/home/sette/github/parental
 - `docs`: documentação técnica e ADRs
 
 ## Como subir
+
+Jeito recomendado para o produto hoje, em `Observer Mode`:
+
+```bash
+./scripts/observer/up.sh
+```
+
+ou:
+
+```bash
+make observer-up
+```
+
+Isso:
+
+- cria `.env` a partir de `.env.example` se faltar
+- sobe a stack principal do modo `Observer`
+- deixa o painel em `http://localhost:4201`
+
+Observacao importante:
+
+- `docker compose build` apenas recompila imagens
+- para rodar a aplicacao, use `./scripts/observer/up.sh`, `make observer-up` ou `docker compose up`
+
+Fluxo manual, se preferir:
 
 ```bash
 cp .env.example .env
@@ -60,6 +98,7 @@ API local:
 - `GET http://localhost:8080/profiles`
 - `GET http://localhost:8080/devices`
 - `POST http://localhost:8080/devices/:id/name`
+- `POST http://localhost:8080/integrations/adguard/sync`
 - `GET http://localhost:8080/activity/dns`
 - `GET http://localhost:8080/activity/flows`
 - `GET http://localhost:8080/alerts`
@@ -92,6 +131,25 @@ npm start
 
 O `proxy.conf.json` envia `/api/*` para `http://localhost:8080`.
 
+## Observer mode
+
+O modo principal do produto hoje e `Observer Mode`.
+
+Ele funciona melhor para:
+
+- inventario da rede da casa
+- descoberta de camera, IoT e dispositivos novos
+- explicacao de risco
+- alertas por DNS, fluxo e endpoint quando houver fonte real do evento
+
+Detalhes em [docs/observer-mode.md](/home/sette/github/parental-local/docs/observer-mode.md).
+
+Para parar a stack do Observer:
+
+```bash
+make observer-down
+```
+
 ## Descoberta real da LAN
 
 O `discovery-collector` ja esta configurado para operar em modo `live` por padrao. Nesta versao ele:
@@ -107,7 +165,7 @@ Variaveis uteis no `.env`:
 - `DISCOVERY_VENDOR_DB=/usr/share/ieee-data/oui.txt`
 - `DASHBOARD_PORT=4201`
 
-## DNS real, blacklist e whitelist
+## Telemetria DNS opcional
 
 O `dns-collector` agora entende:
 
@@ -116,6 +174,10 @@ O `dns-collector` agora entende:
 
 Variaveis uteis:
 
+- `ADGUARD_ENABLED=true`
+- `ADGUARD_URL=http://adguardhome:3000/control`
+- `ADGUARD_USERNAME=admin`
+- `ADGUARD_PASSWORD=senha-definida-no-adguard`
 - `DNS_ADGUARD_QUERYLOG=/adguard-work/querylog.json`
 - `DNS_RESOLVER_NAME=adguardhome`
 
@@ -126,27 +188,33 @@ Quando eventos DNS chegam, o `control-plane`:
 - aplica override por dispositivo
 - gera alertas para:
   - `dns_bypass`
-  - dominio fora da `whitelist`
-  - dominio na `blacklist`
-  - categoria bloqueada, como `adult`
+  - dominio fora da lista esperada
+  - dominio em watchlist
+  - categoria sensivel, como `adult`
 
 No dashboard, cada dispositivo agora pode ter:
 
-- `blacklist` de dominios
-- `whitelist` de dominios
-- `categorias bloqueadas`
-- `Safe Search`
+- watchlist de dominios
+- lista de dominios esperados
+- categorias sensiveis
+- indicacao de Safe Search esperado
 
 Exemplo de uso:
 
 - marque um tablet como perfil `Crianca`
-- adicione `xvideos.com` na blacklist
-- opcionalmente limite a whitelist para domínios de escola/estudo
-- quando o domínio aparecer no DNS, o painel vai alertar
+- adicione `xvideos.com` na watchlist
+- opcionalmente defina dominios esperados de estudo
+- quando o dominio aparecer na telemetria DNS, o painel vai alertar
+
+Importante:
+
+- sem uma fonte de DNS real, nao ha alerta de dominio
+- isso funciona para a propria maquina, para dispositivos com agente ou para clientes que usem o DNS observado pelo GuardianLAN
+- isso nao significa bloqueio automatico da casa inteira
 
 ## Próximos passos sugeridos
 
 - trocar fixtures por conectores reais de roteador, AdGuard Home e export de fluxo
 - adicionar autenticação local e perfis mais ricos
 - incluir agentes de endpoint para notebooks e PCs
-- evoluir para topologia gateway quando houver necessidade de controle total
+- evoluir a cobertura observacional antes de qualquer promessa de enforcement

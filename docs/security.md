@@ -20,7 +20,8 @@ Esta base foi desenhada para seguranca domestica realista. O foco e aumentar vis
 - Sem controle do gateway da rede, a visibilidade e parcial.
 - `HTTPS` limita inspecao de conteudo.
 - O sistema detecta sinais de risco, exposicao e bypass; ele nao substitui um firewall inline completo.
-- A v1 serve como plataforma local de vigilancia e supervisao da rede domestica, mas sua cobertura depende da topologia da casa e das fontes integradas.
+- A cobertura do produto depende das fontes integradas: descoberta, DNS, fluxo e endpoint.
+- No modo atual, ele deve ser tratado como ferramenta de observacao e alerta, nao como mecanismo automatico de bloqueio de toda a casa.
 
 ## Ameacas cobertas pela base
 

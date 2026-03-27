@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/sette/guardian-lan/services/control-plane/internal/domain"
+	"github.com/sette/guardian-lan/services/control-plane/internal/integration"
 	"github.com/sette/guardian-lan/services/control-plane/internal/repository"
 )
 
@@ -21,7 +22,7 @@ func (s *stubAlertPublisher) PublishAlert(_ context.Context, alert domain.Alert)
 func TestHandleDNSEventRaisesBypassAlert(t *testing.T) {
 	store := repository.NewMemoryStore()
 	publisher := &stubAlertPublisher{}
-	orchestrator := NewOrchestrator(store, publisher, "adguardhome")
+	orchestrator := NewOrchestrator(store, publisher, "adguardhome", integration.NoopAdGuardSyncer{})
 
 	_, _, err := store.UpsertDevice(context.Background(), domain.Device{
 		ID:         "device-kid-tablet",
@@ -67,7 +68,7 @@ func TestHandleDNSEventRaisesBypassAlert(t *testing.T) {
 func TestHandleDNSEventMatchesDeviceByClientIPAndDomainPolicy(t *testing.T) {
 	store := repository.NewMemoryStore()
 	publisher := &stubAlertPublisher{}
-	orchestrator := NewOrchestrator(store, publisher, "adguardhome")
+	orchestrator := NewOrchestrator(store, publisher, "adguardhome", integration.NoopAdGuardSyncer{})
 
 	_, _, err := store.UpsertDevice(context.Background(), domain.Device{
 		ID:         "device-kid-tablet",
@@ -124,7 +125,7 @@ func TestHandleDNSEventMatchesDeviceByClientIPAndDomainPolicy(t *testing.T) {
 
 func TestHandleFlowEventCreatesObservation(t *testing.T) {
 	store := repository.NewMemoryStore()
-	orchestrator := NewOrchestrator(store, &stubAlertPublisher{}, "adguardhome")
+	orchestrator := NewOrchestrator(store, &stubAlertPublisher{}, "adguardhome", integration.NoopAdGuardSyncer{})
 
 	err := orchestrator.HandleFlowEvent(context.Background(), domain.FlowEvent{
 		DeviceID:   "device-baby-cam",

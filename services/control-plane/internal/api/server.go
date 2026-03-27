@@ -35,6 +35,7 @@ func NewServer(addr string, store repository.Store, orchestrator *service.Orches
 	mux.HandleFunc("POST /devices/{id}/name", server.handleUpdateDeviceName)
 	mux.HandleFunc("POST /devices/{id}/profile", server.handleUpdateDeviceProfile)
 	mux.HandleFunc("POST /devices/{id}/dns-policy", server.handleUpdateDeviceDNSPolicy)
+	mux.HandleFunc("POST /integrations/adguard/sync", server.handleSyncAdGuard)
 	mux.HandleFunc("GET /activity/dns", server.handleListDNSEvents)
 	mux.HandleFunc("GET /activity/flows", server.handleListFlowEvents)
 	mux.HandleFunc("GET /alerts", server.handleListAlerts)
@@ -130,7 +131,7 @@ func (s *Server) handleUpdateDeviceName(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	device, err := s.store.UpdateDeviceName(r.Context(), r.PathValue("id"), request.DisplayName)
+	device, err := s.orchestrator.UpdateDeviceName(r.Context(), r.PathValue("id"), request.DisplayName)
 	if errors.Is(err, pgx.ErrNoRows) {
 		writeError(w, http.StatusNotFound, err)
 		return
@@ -141,6 +142,15 @@ func (s *Server) handleUpdateDeviceName(w http.ResponseWriter, r *http.Request) 
 	}
 
 	writeJSON(w, http.StatusOK, device)
+}
+
+func (s *Server) handleSyncAdGuard(w http.ResponseWriter, r *http.Request) {
+	if err := s.orchestrator.SyncDNSPolicies(r.Context()); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "synced"})
 }
 
 func (s *Server) handleUpdateDeviceDNSPolicy(w http.ResponseWriter, r *http.Request) {

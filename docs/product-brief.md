@@ -2,14 +2,14 @@
 
 ## Tese
 
-`Guardian LAN` e uma plataforma `local-first` para proteger criancas, adolescentes e a rede domestica sem depender de nuvem como requisito central.
+`Guardian LAN` e uma plataforma `local-first` para observar, explicar e alertar sobre riscos digitais na rede domestica sem depender de nuvem como requisito central.
 
 O produto nasce para ajudar pais, maes e cuidadores que nao dominam tecnologia, mas precisam:
 
 - entender o que existe na rede da casa
 - descobrir cameras, tablets, celulares, TVs, consoles e IoT
 - receber alertas simples sobre risco real
-- aplicar protecao infantil sem virar especialista em firewall
+- ajudar pais a enxergar sinais digitais sem virar especialista em firewall
 
 ## Problema que o produto resolve
 
@@ -43,10 +43,10 @@ O `Guardian LAN` tenta reduzir esse atrito com uma experiencia local, explicativ
 
 - descobrir quem entrou ou apareceu na rede da casa
 - identificar dispositivos que parecem cameras, roteadores, TVs ou IoT
-- ajudar pais a aplicar perfis como `crianca`, `adolescente`, `iot` e `visitante`
+- ajudar pais a organizar perfis como `crianca`, `adolescente`, `iot` e `visitante`
 - mostrar risco de forma compreensivel
 - reduzir exposicao indevida de cameras e baba eletronica
-- servir como base domestica de observabilidade e controle parental
+- servir como base domestica de observabilidade e supervisao parental
 
 ## Nao objetivos da v1
 
@@ -54,6 +54,7 @@ O `Guardian LAN` tenta reduzir esse atrito com uma experiencia local, explicativ
 - nao depender de MITM generalizado para funcionar
 - nao exigir troca imediata do roteador
 - nao operar como produto SaaS obrigatorio
+- nao prometer bloqueio automatico de toda a casa sem topologia adequada
 
 ## Contexto regulatorio
 
@@ -71,3 +72,14 @@ O sistema deve falar mais como um assistente domestico de seguranca do que como 
 - `Este dispositivo esta usando a internet fora da protecao esperada`
 - `Este tablet parece ser de uso infantil; deseja aplicar perfil Crianca?`
 - `Uma baba eletronica pode estar exposta; revise este equipamento`
+
+## Direcao de deploy
+
+Hoje, o produto deve ser descrito primeiro como `Observer Mode`:
+
+- roda em uma maquina da casa
+- observa a rede local sem exigir mudar a topologia
+- usa fontes opcionais de DNS, fluxo e endpoint quando existirem
+- prioriza inventario, explicacao e alerta
+
+Pesquisas de `mini PC`, `appliance mode` e `gateway mode` continuam existindo no repositório, mas ficam como direcao futura e nao como promessa principal do produto atual.

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/sette/guardian-lan/services/control-plane/internal/domain"
+	"github.com/sette/guardian-lan/services/control-plane/internal/integration"
 	"github.com/sette/guardian-lan/services/control-plane/internal/messaging"
 	"github.com/sette/guardian-lan/services/control-plane/internal/repository"
 	"github.com/sette/guardian-lan/services/control-plane/internal/service"
@@ -29,7 +30,7 @@ func TestListDevices(t *testing.T) {
 		t.Fatalf("seed device: %v", err)
 	}
 
-	server := NewServer(":0", store, service.NewOrchestrator(store, messaging.NoopPublisher{}, "adguardhome"))
+	server := NewServer(":0", store, service.NewOrchestrator(store, messaging.NoopPublisher{}, "adguardhome", integration.NoopAdGuardSyncer{}))
 	req := httptest.NewRequest(http.MethodGet, "/devices", nil)
 	rec := httptest.NewRecorder()
 
@@ -42,7 +43,7 @@ func TestListDevices(t *testing.T) {
 
 func TestListProfiles(t *testing.T) {
 	store := repository.NewMemoryStore()
-	server := NewServer(":0", store, service.NewOrchestrator(store, messaging.NoopPublisher{}, "adguardhome"))
+	server := NewServer(":0", store, service.NewOrchestrator(store, messaging.NoopPublisher{}, "adguardhome", integration.NoopAdGuardSyncer{}))
 	req := httptest.NewRequest(http.MethodGet, "/profiles", nil)
 	rec := httptest.NewRecorder()
 
@@ -76,7 +77,7 @@ func TestUpdateDeviceProfile(t *testing.T) {
 		t.Fatalf("seed device: %v", err)
 	}
 
-	server := NewServer(":0", store, service.NewOrchestrator(store, messaging.NoopPublisher{}, "adguardhome"))
+	server := NewServer(":0", store, service.NewOrchestrator(store, messaging.NoopPublisher{}, "adguardhome", integration.NoopAdGuardSyncer{}))
 	body, _ := json.Marshal(domain.ProfileUpdateRequest{ProfileID: "child"})
 	req := httptest.NewRequest(http.MethodPost, "/devices/device-1/profile", bytes.NewReader(body))
 	rec := httptest.NewRecorder()
@@ -129,7 +130,7 @@ func TestListDeviceInsights(t *testing.T) {
 		t.Fatalf("seed observation: %v", err)
 	}
 
-	server := NewServer(":0", store, service.NewOrchestrator(store, messaging.NoopPublisher{}, "adguardhome"))
+	server := NewServer(":0", store, service.NewOrchestrator(store, messaging.NoopPublisher{}, "adguardhome", integration.NoopAdGuardSyncer{}))
 	req := httptest.NewRequest(http.MethodGet, "/devices/device-1/insights", nil)
 	rec := httptest.NewRecorder()
 
@@ -167,7 +168,7 @@ func TestUpdateDeviceName(t *testing.T) {
 		t.Fatalf("seed device: %v", err)
 	}
 
-	server := NewServer(":0", store, service.NewOrchestrator(store, messaging.NoopPublisher{}, "adguardhome"))
+	server := NewServer(":0", store, service.NewOrchestrator(store, messaging.NoopPublisher{}, "adguardhome", integration.NoopAdGuardSyncer{}))
 	body, _ := json.Marshal(domain.DeviceNameUpdateRequest{DisplayName: "Baba eletronica"})
 	req := httptest.NewRequest(http.MethodPost, "/devices/device-1/name", bytes.NewReader(body))
 	rec := httptest.NewRecorder()
@@ -202,7 +203,7 @@ func TestUpdateDeviceDNSPolicy(t *testing.T) {
 		t.Fatalf("seed device: %v", err)
 	}
 
-	server := NewServer(":0", store, service.NewOrchestrator(store, messaging.NoopPublisher{}, "adguardhome"))
+	server := NewServer(":0", store, service.NewOrchestrator(store, messaging.NoopPublisher{}, "adguardhome", integration.NoopAdGuardSyncer{}))
 	body, _ := json.Marshal(domain.DeviceDNSPolicyUpdateRequest{
 		DNSPolicy: domain.DNSPolicy{
 			BlockedDomains: []string{"xvideos.com", "example.org"},

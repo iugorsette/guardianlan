@@ -10,6 +10,7 @@ import (
 
 	"github.com/sette/guardian-lan/services/control-plane/internal/api"
 	"github.com/sette/guardian-lan/services/control-plane/internal/config"
+	"github.com/sette/guardian-lan/services/control-plane/internal/integration"
 	"github.com/sette/guardian-lan/services/control-plane/internal/messaging"
 	"github.com/sette/guardian-lan/services/control-plane/internal/repository"
 	"github.com/sette/guardian-lan/services/control-plane/internal/service"
@@ -30,10 +31,21 @@ func Run(ctx context.Context) error {
 	}
 	defer natsConn.Close()
 
-	orchestrator := service.NewOrchestrator(store, messaging.NewNATSPublisher(natsConn), cfg.ExpectedDNSResolver)
+	var adGuardSyncer service.DNSPolicySyncer = integration.NoopAdGuardSyncer{}
+	if cfg.AdGuardEnabled {
+		adGuardSyncer = integration.NewAdGuardClient(cfg.AdGuardURL, cfg.AdGuardUsername, cfg.AdGuardPassword)
+	}
+
+	orchestrator := service.NewOrchestrator(store, messaging.NewNATSPublisher(natsConn), cfg.ExpectedDNSResolver, adGuardSyncer)
 	subscriber := messaging.NewSubscriber(natsConn, orchestrator)
 	if err := subscriber.Start(ctx); err != nil {
 		return err
+	}
+
+	if cfg.AdGuardEnabled {
+		if err := orchestrator.SyncDNSPolicies(ctx); err != nil {
+			log.Printf("initial adguard sync failed: %v", err)
+		}
 	}
 
 	server := api.NewServer(cfg.HTTPAddr, store, orchestrator)

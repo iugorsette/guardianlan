@@ -75,11 +75,14 @@
       <div class="device-list">
         @for (device of devices(); track trackById($index, device)) {
           <section class="device-card">
+            <button class="settings-button settings-button-inline" type="button" (click)="openDeviceSettings(device)" aria-label="Abrir configuracoes do dispositivo">
+              <span aria-hidden="true">&#9881;</span>
+            </button>
+
             <div class="device-main">
               <div class="device-heading">
                 <div class="device-heading-copy">
                   @if (deviceHasCustomName(device)) {
-                    <p class="device-custom-label">Nome escolhido</p>
                     <h3>{{ devicePrimaryName(device) }}</h3>
                     <p class="device-identity">{{ deviceTechnicalName(device) }}</p>
                   } @else {
@@ -106,37 +109,6 @@
                 <span class="tag">{{ device.mac || 'MAC indisponivel' }}</span>
                 <span class="tag">ultimo avistamento {{ device.last_seen_at | date: 'dd/MM HH:mm' }}</span>
               </div>
-            </div>
-
-            <div class="device-side">
-              <div class="device-status">
-                <div class="device-status-item">
-                  <span class="status-label">Controle</span>
-                  <strong>{{ device.managed ? 'Gerenciado' : 'Nao gerenciado' }}</strong>
-                </div>
-                <div class="device-status-item">
-                  <span class="status-label">Perfil ativo</span>
-                  <strong>{{ profileLabel(device.profile_id) }}</strong>
-                </div>
-                <div class="device-status-item">
-                  <span class="status-label">Politica DNS</span>
-                  <strong>
-                    {{
-                      device.dns_policy_override.blocked_domains?.length ||
-                      device.dns_policy_override.allowed_domains?.length ||
-                      device.dns_policy_override.blocked_categories?.length ||
-                      device.dns_policy_override.safe_search
-                        ? 'Personalizada'
-                        : 'Padrao do perfil'
-                    }}
-                  </strong>
-                </div>
-              </div>
-
-              <button class="settings-button" type="button" (click)="openDeviceSettings(device)" aria-label="Abrir configuracoes do dispositivo">
-                <span aria-hidden="true">&#9881;</span>
-                Configurar
-              </button>
             </div>
           </section>
         } @empty {
@@ -404,7 +376,7 @@
         </label>
 
         <label>
-          Blacklist de dominios
+          Watchlist de dominios
           <textarea
             rows="4"
             [ngModel]="dnsPolicyFor(device).blockedDomains"
@@ -414,7 +386,7 @@
         </label>
 
         <label>
-          Whitelist de dominios
+          Dominios esperados
           <textarea
             rows="4"
             [ngModel]="dnsPolicyFor(device).allowedDomains"
@@ -424,7 +396,7 @@
         </label>
 
         <label class="modal-wide">
-          Categorias bloqueadas
+          Categorias sensiveis
           <textarea
             rows="3"
             [ngModel]="dnsPolicyFor(device).blockedCategories"
@@ -439,7 +411,7 @@
             [ngModel]="dnsPolicyFor(device).safeSearch"
             (ngModelChange)="setDNSPolicyDraft(device.id, { safeSearch: !!$event })"
           />
-          <span>Forcar Safe Search neste dispositivo</span>
+          <span>Marcar Safe Search como esperado neste dispositivo</span>
         </label>
       </div>
 

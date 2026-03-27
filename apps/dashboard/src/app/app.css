@@ -280,8 +280,10 @@ textarea {
 }
 
 .device-card {
-  grid-template-columns: minmax(0, 1fr) 260px;
+  position: relative;
+  grid-template-columns: 1fr;
   align-items: start;
+  padding: 16px;
 }
 
 .device-heading,
@@ -299,22 +301,14 @@ textarea {
 
 .device-heading-copy {
   display: grid;
-  gap: 4px;
+  gap: 2px;
 }
 
-.device-custom-label,
 .device-identity,
-.status-label,
 .modal-subtitle,
 .alert-evidence {
   margin: 0;
   color: var(--text-muted);
-}
-
-.device-custom-label {
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  font-size: 0.72rem;
 }
 
 .device-identity {
@@ -322,7 +316,7 @@ textarea {
 }
 
 .device-meta {
-  margin: 8px 0 10px;
+  margin: 6px 0 8px;
   color: var(--text-soft);
 }
 
@@ -361,48 +355,15 @@ textarea {
   color: #ffe19b;
 }
 
-.device-actions {
-  display: grid;
-  gap: 10px;
-}
-
-.device-actions label {
-  display: grid;
-  gap: 8px;
-  font-size: 0.9rem;
-  color: var(--text-soft);
-}
-
-.device-side {
-  display: grid;
-  gap: 14px;
-}
-
-.device-status {
-  display: grid;
-  gap: 10px;
-}
-
-.device-status-item {
-  padding: 12px 14px;
-  border-radius: 18px;
-  background: rgba(8, 17, 28, 0.82);
-  border: 1px solid rgba(154, 175, 197, 0.12);
-}
-
-.device-status-item strong {
-  display: block;
-  margin-top: 6px;
-  font-size: 1rem;
-}
-
 .settings-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 14px 16px;
-  border-radius: 18px;
+  gap: 0;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border-radius: 14px;
   border: 1px solid rgba(125, 249, 214, 0.22);
   background: linear-gradient(135deg, rgba(125, 249, 214, 0.14), rgba(111, 168, 255, 0.12));
   color: var(--text-main);
@@ -412,6 +373,12 @@ textarea {
 
 .settings-button:hover {
   transform: translateY(-1px);
+}
+
+.settings-button-inline {
+  position: absolute;
+  top: 12px;
+  right: 12px;
 }
 
 input,

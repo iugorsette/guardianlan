@@ -1,0 +1,6 @@
+[Match]
+Name=$WAN_IF
+
+[Network]
+DHCP=yes
+IPv6AcceptRA=yes

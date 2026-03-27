@@ -20,13 +20,19 @@ type AlertPublisher interface {
 	PublishAlert(context.Context, domain.Alert) error
 }
 
+type DNSPolicySyncer interface {
+	SyncDevice(context.Context, domain.Device, domain.Profile, domain.DNSPolicy, []domain.Device, map[string]domain.Profile) error
+	SyncAll(context.Context, []domain.Device, map[string]domain.Profile) error
+}
+
 type Orchestrator struct {
 	store               repository.Store
 	alertPublisher      AlertPublisher
 	expectedDNSResolver string
+	dnsPolicySyncer     DNSPolicySyncer
 }
 
-func NewOrchestrator(store repository.Store, alertPublisher AlertPublisher, expectedDNSResolver string) *Orchestrator {
+func NewOrchestrator(store repository.Store, alertPublisher AlertPublisher, expectedDNSResolver string, dnsPolicySyncer DNSPolicySyncer) *Orchestrator {
 	if alertPublisher == nil {
 		alertPublisher = noopAlertPublisher{}
 	}
@@ -35,6 +41,7 @@ func NewOrchestrator(store repository.Store, alertPublisher AlertPublisher, expe
 		store:               store,
 		alertPublisher:      alertPublisher,
 		expectedDNSResolver: expectedDNSResolver,
+		dnsPolicySyncer:     dnsPolicySyncer,
 	}
 }
 
@@ -91,6 +98,7 @@ func (o *Orchestrator) HandleDeviceEvent(ctx context.Context, event domain.Devic
 		return err
 	}
 
+	_ = o.syncDeviceDNSPolicy(ctx, stored)
 	return nil
 }
 
@@ -243,11 +251,43 @@ func (o *Orchestrator) HandleFlowEvent(ctx context.Context, event domain.FlowEve
 }
 
 func (o *Orchestrator) UpdateDeviceProfile(ctx context.Context, id string, profileID string) (domain.Device, error) {
-	return o.store.UpdateDeviceProfile(ctx, id, profileID)
+	device, err := o.store.UpdateDeviceProfile(ctx, id, profileID)
+	if err != nil {
+		return domain.Device{}, err
+	}
+
+	return device, o.syncDeviceDNSPolicy(ctx, device)
 }
 
 func (o *Orchestrator) UpdateDeviceDNSPolicy(ctx context.Context, id string, policy domain.DNSPolicy) (domain.Device, error) {
-	return o.store.UpdateDeviceDNSPolicy(ctx, id, domain.NormalizeDNSPolicy(policy))
+	device, err := o.store.UpdateDeviceDNSPolicy(ctx, id, domain.NormalizeDNSPolicy(policy))
+	if err != nil {
+		return domain.Device{}, err
+	}
+
+	return device, o.syncDeviceDNSPolicy(ctx, device)
+}
+
+func (o *Orchestrator) UpdateDeviceName(ctx context.Context, id string, displayName string) (domain.Device, error) {
+	device, err := o.store.UpdateDeviceName(ctx, id, displayName)
+	if err != nil {
+		return domain.Device{}, err
+	}
+
+	return device, o.syncDeviceDNSPolicy(ctx, device)
+}
+
+func (o *Orchestrator) SyncDNSPolicies(ctx context.Context) error {
+	if o.dnsPolicySyncer == nil {
+		return nil
+	}
+
+	devices, profiles, err := o.loadDevicesAndProfiles(ctx)
+	if err != nil {
+		return err
+	}
+
+	return o.dnsPolicySyncer.SyncAll(ctx, devices, profiles)
 }
 
 func (o *Orchestrator) raiseAlert(ctx context.Context, alert domain.Alert) (domain.Alert, error) {
@@ -350,6 +390,44 @@ func normalizeTime(value time.Time) time.Time {
 	}
 
 	return value.UTC()
+}
+
+func (o *Orchestrator) syncDeviceDNSPolicy(ctx context.Context, device domain.Device) error {
+	if o.dnsPolicySyncer == nil {
+		return nil
+	}
+
+	profile, err := o.store.GetProfile(ctx, device.ProfileID)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
+
+	mergedPolicy := domain.MergeDNSPolicies(profile.DNSPolicy, device.DNSPolicyOverride)
+	devices, profiles, err := o.loadDevicesAndProfiles(ctx)
+	if err != nil {
+		return err
+	}
+
+	return o.dnsPolicySyncer.SyncDevice(ctx, device, profile, mergedPolicy, devices, profiles)
+}
+
+func (o *Orchestrator) loadDevicesAndProfiles(ctx context.Context) ([]domain.Device, map[string]domain.Profile, error) {
+	devices, err := o.store.ListDevices(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	profilesList, err := o.store.ListProfiles(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	profiles := make(map[string]domain.Profile, len(profilesList))
+	for _, profile := range profilesList {
+		profiles[profile.ID] = profile
+	}
+
+	return devices, profiles, nil
 }
 
 func (o *Orchestrator) ensureDeviceExists(ctx context.Context, deviceID string, clientName string, clientIP string, observedAt time.Time) error {

@@ -138,6 +138,7 @@ fn normalize_adguard_entry(entry: &Value, resolver_name: &str) -> Option<DnsEven
         &["timestamp"],
         &["ts"],
         &["t"],
+        &["T"],
     ])?;
 
     let domain = first_string(entry, &[
@@ -147,6 +148,7 @@ fn normalize_adguard_entry(entry: &Value, resolver_name: &str) -> Option<DnsEven
         &["host"],
         &["domain"],
         &["query"],
+        &["QH"],
     ])?;
 
     let query = first_string(entry, &[
@@ -155,6 +157,7 @@ fn normalize_adguard_entry(entry: &Value, resolver_name: &str) -> Option<DnsEven
         &["question", "host"],
         &["domain"],
         &["qhost"],
+        &["QH"],
     ])
     .unwrap_or_else(|| domain.clone());
 
@@ -164,6 +167,7 @@ fn normalize_adguard_entry(entry: &Value, resolver_name: &str) -> Option<DnsEven
         &["clientIP"],
         &["src_ip"],
         &["ip"],
+        &["IP"],
     ])
     .unwrap_or_default();
     let client_name = first_string(entry, &[
@@ -171,6 +175,7 @@ fn normalize_adguard_entry(entry: &Value, resolver_name: &str) -> Option<DnsEven
         &["clientName"],
         &["device_name"],
         &["name"],
+        &["CP"],
     ])
     .unwrap_or_default();
 
@@ -179,7 +184,9 @@ fn normalize_adguard_entry(entry: &Value, resolver_name: &str) -> Option<DnsEven
         &["category"],
         &["reason"],
         &["result", "reason"],
+        &["Result", "Reason"],
     ])
+    .map(normalize_category)
     .unwrap_or_else(|| infer_category(&domain));
     let blocked = first_bool(entry, &[
         &["blocked"],
@@ -187,6 +194,7 @@ fn normalize_adguard_entry(entry: &Value, resolver_name: &str) -> Option<DnsEven
         &["result", "is_filtered"],
         &["result", "blocked"],
         &["status", "blocked"],
+        &["Result", "IsFiltered"],
     ])
     .unwrap_or_else(|| infer_blocked(entry));
 
@@ -263,6 +271,12 @@ fn get_path<'a>(entry: &'a Value, path: &[&str]) -> Option<&'a Value> {
 }
 
 fn infer_blocked(entry: &Value) -> bool {
+    if let Some(reason) = first_string(entry, &[&["Result", "Reason"], &["result", "reason"]]) {
+        if reason.trim() == "3" {
+            return true;
+        }
+    }
+
     first_string(entry, &[&["status"], &["result", "status"]])
         .map(|value| matches!(value.to_ascii_lowercase().as_str(), "blocked" | "filtered"))
         .unwrap_or(false)
@@ -273,6 +287,15 @@ fn infer_category(domain: &str) -> String {
         return "adult".to_string();
     }
     "unknown".to_string()
+}
+
+fn normalize_category(value: String) -> String {
+    match value.trim() {
+        "3" => "filtered".to_string(),
+        "4" => "safe_browsing".to_string(),
+        "5" => "parental".to_string(),
+        _ => value.to_ascii_lowercase(),
+    }
 }
 
 fn looks_like_ip(value: &str) -> bool {
@@ -298,5 +321,23 @@ mod tests {
         assert!(events[0].blocked);
         assert_eq!(events[1].client_name, "Kid Tablet");
         assert_eq!(events[1].resolver, "adguardhome");
+    }
+
+    #[test]
+    fn parses_real_adguard_querylog_lines() {
+        let events = parse_adguard_events(
+            r#"{"T":"2026-03-26T23:07:16.500975164Z","QH":"www.xvideos.com","QT":"A","QC":"IN","CP":"","IP":"192.168.1.50","Result":{"Rules":[{"Text":"||xvideos.com^$client=192.168.1.50"}],"Reason":3,"IsFiltered":true},"Elapsed":54415}
+{"T":"2026-03-26T23:08:16.500975164Z","QH":"googleclassroom.com","QT":"A","QC":"IN","CP":"Meu Notebook","IP":"192.168.1.50","Result":{},"Elapsed":54415}"#,
+            "adguardhome",
+        )
+        .unwrap();
+
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].client_ip, "192.168.1.50");
+        assert_eq!(events[0].domain, "www.xvideos.com");
+        assert_eq!(events[0].category, "filtered");
+        assert!(events[0].blocked);
+        assert_eq!(events[1].client_name, "Meu Notebook");
+        assert!(!events[1].blocked);
     }
 }

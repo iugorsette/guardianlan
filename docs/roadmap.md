@@ -13,16 +13,19 @@ O roadmap tecnico acompanha um roadmap de produto: primeiro ajudar pais e cuidad
 
 ## V2
 
-- conectores reais para roteadores suportados
-- ingestao direta do AdGuard Home
-- integracao de export de fluxo com ntopng
+- consolidar o `Observer Mode` como proposta principal do produto
+- conectores reais para roteadores suportados em modo observacional
+- ingestao direta de logs DNS e fluxo quando existirem
 - agentes de endpoint para notebooks e PCs
 - UX guiada para pais e cuidadores
-- alertas mais explicativos para camera, tablet infantil, IoT e bypass
+- alertas mais explicativos para camera, tablet infantil, IoT, dominio sensivel e bypass
+- separar claramente `Observer Base` e `Observer Plus`
 
 ## V3
 
-- topologia gateway central ou bridge
-- enforcement mais forte por VLAN/segmentacao
+- pesquisas de `appliance mode` e `gateway mode` como trilha opcional futura
+- mini PC dedicado apenas quando houver interesse em enforcement real
+- conectores reais para roteadores suportados
+- integracao mais rica de export de fluxo com ntopng
 - inspeção mais rica de trafego e maior cobertura da rede
 - automacoes mais fortes para horarios, perfis e isolamento de risco

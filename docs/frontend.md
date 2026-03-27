@@ -10,6 +10,13 @@ O painel foi iniciado em `Angular` por tres motivos principais:
 
 No contexto do produto, a UI nao e apenas um dashboard tecnico. Ela precisa servir como uma interface de orientacao para pais e cuidadores, com linguagem simples e contexto suficiente para decisao.
 
+No modo atual do produto, a UI deve falar como `Observer`:
+
+- mostrar o que foi visto
+- explicar por que aquilo importa
+- alertar pais e cuidadores
+- evitar linguagem que pareca prometer bloqueio automatico quando a topologia nao suporta isso
+
 ## Quando Angular faz mais sentido aqui
 
 - muitas telas administrativas

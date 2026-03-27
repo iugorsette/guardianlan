@@ -39,6 +39,10 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:guardian_lan_local_2026@postgres:5432/guardian_lan?sslmode=disable}
       NATS_URL: ${NATS_URL:-nats://nats:4222}
       EXPECTED_DNS_RESOLVER: ${EXPECTED_DNS_RESOLVER:-adguardhome}
+      ADGUARD_ENABLED: ${ADGUARD_ENABLED:-false}
+      ADGUARD_URL: ${ADGUARD_URL:-http://adguardhome:3000/control}
+      ADGUARD_USERNAME: ${ADGUARD_USERNAME:-}
+      ADGUARD_PASSWORD: ${ADGUARD_PASSWORD:-}
     depends_on:
       nats:
         condition: service_healthy
@@ -92,6 +96,7 @@ services:
       dockerfile: collectors/Dockerfile
       args:
         BIN_NAME: dns-collector
+    user: "0:0"
     environment:
       NATS_URL: ${NATS_URL:-nats://nats:4222}
       DNS_SOURCE: ${DNS_SOURCE:-disabled}
@@ -127,9 +132,9 @@ services:
     image: adguard/adguardhome:latest
     profiles: ["tooling"]
     ports:
-      - "3000:3000"
-      - "53:53/tcp"
-      - "53:53/udp"
+      - "${ADGUARD_WEB_BIND_IP:-127.0.0.1}:3000:3000"
+      - "${ADGUARD_DNS_BIND_IP:-127.0.0.1}:53:53/tcp"
+      - "${ADGUARD_DNS_BIND_IP:-127.0.0.1}:53:53/udp"
     volumes:
       - adguard-work:/opt/adguardhome/work
       - adguard-conf:/opt/adguardhome/conf

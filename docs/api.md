@@ -61,6 +61,18 @@ Payload:
 }
 ```
 
+### `POST /integrations/adguard/sync`
+
+Forca uma resincronizacao completa entre as politicas do `Guardian LAN` e o `AdGuard Home`.
+
+Resposta:
+
+```json
+{
+  "status": "synced"
+}
+```
+
 ### `GET /activity/dns`
 
 Lista eventos DNS recentes.
@@ -106,3 +118,4 @@ Marca um alerta como reconhecido.
 - Eventos e alertas retornam metadados normalizados e referencia de evidencia em JSON quando existir.
 - Perfis existentes na base inicial: `adult`, `child`, `iot`, `guest`.
 - A politica efetiva de DNS vem do perfil base mais o override opcional por dispositivo.
+- Quando `ADGUARD_ENABLED=true`, atualizacoes de nome, perfil e politica DNS tentam sincronizar enforcement real com o `AdGuard Home`.

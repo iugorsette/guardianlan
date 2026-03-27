@@ -1,0 +1,7 @@
+[Match]
+Name=$LAN_IF
+
+[Network]
+Address=$LAN_ADDRESS
+IPForward=yes
+IPv6SendRA=no

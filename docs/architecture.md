@@ -13,6 +13,7 @@ Acima da arquitetura tecnica, o produto segue uma intencao clara:
 - ser local e simples de operar
 - ajudar familias, nao apenas operadores tecnicos
 - transformar sinais tecnicos em explicacoes e acoes compreensiveis
+- observar a casa melhor do que controlar a casa inteira sem lastro tecnico
 
 ## Componentes
 
@@ -39,7 +40,7 @@ Acima da arquitetura tecnica, o produto segue uma intencao clara:
 - `dashboard`
   - consome a API local via `/api`
   - mostra inventario, alertas, DNS e fluxo
-  - permite ajustar perfil, nome amigavel, politica DNS e reconhecer alerta
+  - permite ajustar perfil, nome amigavel, watchlists de interesse e reconhecer alerta
 
 ## Fluxo principal
 
@@ -57,6 +58,16 @@ Acima da arquitetura tecnica, o produto segue uma intencao clara:
 - `Angular` concentra a experiencia de operacao local.
 - Ferramentas como `AdGuard Home` e `ntopng` continuam sendo fontes externas especializadas.
 
+## Observer mode
+
+A arquitetura atual deve ser lida primeiro como `Observer Mode`:
+
+- `discovery` e a fonte mais ampla e confiavel sem mexer na rede
+- `dns`, `fluxo` e `endpoint` entram como fontes opcionais de telemetria
+- alertas dependem da existencia dessas fontes
+
+Detalhes em [docs/observer-mode.md](/home/sette/github/parental-local/docs/observer-mode.md).
+
 ## Leitmotiv de produto
 
 A arquitetura nao existe para "interceptar tudo" por padrao. Ela existe para equilibrar:
@@ -70,6 +81,6 @@ Por isso a v1 privilegia metadados, descoberta, classificacao, DNS, fluxo e corr
 
 ## Decisoes importantes
 
-- `NATS` foi escolhido por ser leve e adequado para appliance local.
+- `NATS` foi escolhido por ser leve e adequado para processamento local.
 - O sistema guarda resumos e metadados por padrao.
 - Captura de payload bruto fica fora do caminho padrao da v1.
